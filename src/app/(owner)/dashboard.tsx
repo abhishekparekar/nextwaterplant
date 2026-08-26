@@ -233,28 +233,65 @@ export default function OwnerDashboard() {
         {/* VIEW 1: [ MENU ] — 3-COLUMN GRID OF ALL 18 BUSINESS MODULES (COMPACT DESIGN) */}
         {/* ========================================================================= */}
         {activeTab === 'menu' && (
-          <View className="flex-row flex-wrap justify-between gap-y-2">
-            {menuModules.map((mod) => (
-              <TouchableOpacity
-                key={mod.id}
-                onPress={mod.onPress}
-                className="w-[31.6%] bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl py-2 px-1.5 items-center justify-center shadow-2xs active:opacity-75 min-h-[90px]"
-                activeOpacity={0.7}
-              >
-                <View 
-                  className="w-9 h-9 rounded-xl justify-center items-center"
-                  style={{ backgroundColor: mod.bg }}
-                >
-                  <Ionicons name={mod.icon as any} size={18} color={mod.color} />
+          <View className="gap-2.5">
+            {/* Live Plant Status & Delivery Fleet Ribbon */}
+            <View className="bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-2xs">
+              <View className="flex-row justify-between items-center pb-2 mb-2 border-b border-slate-100 dark:border-slate-800">
+                <View className="flex-row items-center gap-1.5">
+                  <View className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  <Text className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                    Plant Status: Active & Purifying
+                  </Text>
                 </View>
-                <Text 
-                  className="text-[10.5px] font-bold text-slate-800 dark:text-slate-100 text-center leading-tight mt-1.5 px-0.5"
-                  numberOfLines={2}
+                <TouchableOpacity 
+                  onPress={() => router.push('/(owner)/add-helper')}
+                  className="flex-row items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-950/40 active:opacity-75"
                 >
-                  {mod.title}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text className="text-3xs font-bold text-sky-600">Manage Staff</Text>
+                  <Ionicons name="chevron-forward" size={10} color="#0284C7" />
+                </TouchableOpacity>
+              </View>
+
+              <View className="flex-row justify-between items-center">
+                <View className="items-center flex-1 border-r border-slate-100 dark:border-slate-800">
+                  <Text className="text-4xs font-bold text-slate-400 uppercase">Stock Ready</Text>
+                  <Text className="text-xs font-black text-sky-600">420 Jars</Text>
+                </View>
+                <View className="items-center flex-1 border-r border-slate-100 dark:border-slate-800">
+                  <Text className="text-4xs font-bold text-slate-400 uppercase">Drivers Active</Text>
+                  <Text className="text-xs font-black text-emerald-600">2 on Route</Text>
+                </View>
+                <View className="items-center flex-1">
+                  <Text className="text-4xs font-bold text-slate-400 uppercase">Rate / 20L</Text>
+                  <Text className="text-xs font-black text-indigo-600">₹35.00</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* 3-Column Grid of 18 Modules */}
+            <View className="flex-row flex-wrap justify-between gap-y-2">
+              {menuModules.map((mod) => (
+                <TouchableOpacity
+                  key={mod.id}
+                  onPress={mod.onPress}
+                  className="w-[31.6%] bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl py-2 px-1.5 items-center justify-center shadow-2xs active:opacity-75 min-h-[90px]"
+                  activeOpacity={0.7}
+                >
+                  <View 
+                    className="w-9 h-9 rounded-xl justify-center items-center"
+                    style={{ backgroundColor: mod.bg }}
+                  >
+                    <Ionicons name={mod.icon as any} size={18} color={mod.color} />
+                  </View>
+                  <Text 
+                    className="text-[10.5px] font-bold text-slate-800 dark:text-slate-100 text-center leading-tight mt-1.5 px-0.5"
+                    numberOfLines={2}
+                  >
+                    {mod.title}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         )}
 

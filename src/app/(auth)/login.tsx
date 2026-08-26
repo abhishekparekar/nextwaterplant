@@ -75,18 +75,66 @@ export default function LoginScreen() {
     }
 
     if (selectedRole === 'helper') {
-      if (helperPin === '8492' || helperPin.length >= 4) {
+      const cleanEmail = email.trim().toLowerCase();
+      const enteredPass = password.trim() || helperPin.trim();
+
+      if (!cleanEmail && !helperPin) {
+        setValidationError('Please enter your Staff Email / Mobile or PIN.');
+        return;
+      }
+
+      // Check against registered staff list
+      try {
+        const { staffService } = await import('@/services/staffService');
+        const staffList = await staffService.getAll();
+        const matched = staffList.find(
+          (s) => 
+            (s.email && s.email.toLowerCase() === cleanEmail) || 
+            (s.phone && s.phone.replace(/[^0-9]/g, '') === cleanEmail.replace(/[^0-9]/g, '')) ||
+            (helperPin && (helperPin === '8492' || s.phone.endsWith(helperPin)))
+        );
+
+        if (matched) {
+          if (matched.status === 'inactive') {
+            setValidationError('⚠️ Access Stopped: Your staff account is currently inactive. Contact your Plant Owner.');
+            return;
+          }
+
+          setUser({
+            uid: matched.id,
+            email: matched.email,
+            displayName: matched.name,
+            role: 'helper',
+            phoneNumber: matched.phone,
+            businessName: matched.businessName || 'Abhiraj Water Plant',
+            supportPhone: '8485877633',
+            address: matched.address,
+            createdAt: matched.createdAt,
+            updatedAt: matched.updatedAt
+          });
+          router.replace(ROUTES.HELPER.DASHBOARD);
+          return;
+        }
+      } catch (e) {}
+
+      // Fallback helper login with PIN or default credentials
+      if (helperPin === '8492' || enteredPass.length >= 4) {
         setUser({
           uid: 'helper_1',
           email: email || 'driver@nextwater.app',
           displayName: 'Ramesh Driver',
           role: 'helper',
+          businessName: 'Abhiraj Water Plant',
+          supportPhone: '8485877633',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         });
         router.replace(ROUTES.HELPER.DASHBOARD);
         return;
       }
+
+      setValidationError('Invalid staff credentials. Please check your email/password or PIN.');
+      return;
     }
 
     if (!email || !password) {
