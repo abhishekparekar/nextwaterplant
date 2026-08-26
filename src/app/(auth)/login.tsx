@@ -1,23 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Text, 
-  View, 
-  TouchableOpacity, 
-  KeyboardAvoidingView, 
-  Platform, 
-  ScrollView, 
-  Image, 
-  Alert,
-  ActivityIndicator
-} from 'react-native';
-import { useRouter } from 'expo-router';
+import { Button } from '@/components/common/Button';
+import { Input } from '@/components/common/Input';
+import { ROUTES } from '@/constants/routes';
+import { staffService } from '@/services/staffService';
 import { useAuthStore } from '@/store/authStore';
 import { useCustomerStore } from '@/store/customerStore';
-import { staffService } from '@/services/staffService';
-import { Input } from '@/components/common/Input';
-import { Button } from '@/components/common/Button';
-import { ROUTES } from '@/constants/routes';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 
 export default function LoginScreen() {
   const [selectedRole, setSelectedRole] = useState<'owner' | 'helper' | 'customer'>('owner');
@@ -28,7 +26,7 @@ export default function LoginScreen() {
   const [customerPassword, setCustomerPassword] = useState('');
   const [validationError, setValidationError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  
+
   const { customers, fetchCustomers } = useCustomerStore();
   const { signIn, setUser } = useAuthStore();
   const router = useRouter();
@@ -88,8 +86,8 @@ export default function LoginScreen() {
       const latestCustomers = useCustomerStore.getState().customers;
 
       const matched = latestCustomers.find(
-        (c) => 
-          (c.email && c.email.toLowerCase() === cleanIdent) || 
+        (c) =>
+          (c.email && c.email.toLowerCase() === cleanIdent) ||
           (c.phone && c.phone.replace(/[^0-9]/g, '') === cleanIdent.replace(/[^0-9]/g, ''))
       );
 
@@ -140,8 +138,8 @@ export default function LoginScreen() {
 
       const staffList = await staffService.getAll();
       const matched = staffList.find(
-        (s) => 
-          (s.email && s.email.toLowerCase() === cleanHelperEmail) || 
+        (s) =>
+          (s.email && s.email.toLowerCase() === cleanHelperEmail) ||
           (s.phone && s.phone.replace(/[^0-9]/g, '') === cleanHelperEmail.replace(/[^0-9]/g, '')) ||
           (helperPin && (helperPin === '8492' || s.phone.endsWith(helperPin)))
       );
@@ -197,7 +195,7 @@ export default function LoginScreen() {
 
       try {
         const userProfile = await signIn(cleanEmail, password);
-        
+
         if (userProfile.role !== 'owner') {
           setValidationError(`⚠️ Role Mismatch: You are registered as a "${userProfile.role.toUpperCase()}". Please select the correct role above.`);
           setIsLoggingIn(false);
@@ -214,12 +212,12 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-slate-50 dark:bg-slate-900"
     >
-      <ScrollView 
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingBottom: 60 }} 
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingBottom: 60 }}
         keyboardShouldPersistTaps="handled"
         className="px-5 py-8"
         showsVerticalScrollIndicator={false}
@@ -227,9 +225,9 @@ export default function LoginScreen() {
         <View className="max-w-md mx-auto w-full">
           {/* Header Brand & Welcome Title */}
           <View className="items-center mb-5">
-            <Image 
-              source={require('../../../assets/images/logo1_transparent.png')} 
-              style={{ width: 170, height: 100 }} 
+            <Image
+              source={require('../../../assets/images/logo1_transparent.png')}
+              style={{ width: 180, height: 110 }}
               resizeMode="contain"
               className="mb-1"
             />
@@ -244,7 +242,7 @@ export default function LoginScreen() {
           {/* 3 Role Selection Cards */}
           <View className="gap-2 mb-4">
             {/* Card 1: Business Owner */}
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => {
                 setSelectedRole('owner');
                 setValidationError('');
@@ -269,7 +267,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             {/* Card 2: Staff / Helper */}
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => {
                 setSelectedRole('helper');
                 setValidationError('');
@@ -294,7 +292,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             {/* Card 3: Water Customer */}
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => {
                 setSelectedRole('customer');
                 setValidationError('');
@@ -403,7 +401,7 @@ export default function LoginScreen() {
 
             {/* Register Link (Owner only) */}
             {selectedRole === 'owner' && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => router.push(ROUTES.REGISTER)}
                 className="mt-4 items-center active:opacity-70 py-1"
               >

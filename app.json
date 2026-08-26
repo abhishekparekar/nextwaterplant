@@ -8,15 +8,16 @@
     "scheme": "nextwater",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/logo1_transparent.png"
+      "icon": "./assets/images/logo1_transparent.png",
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0F172A",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/logo1_transparent.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.abhiparekar.NextWater"
+      "package": "com.abhiparekar.nextwater"
     },
     "web": {
       "output": "static",
@@ -27,9 +28,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0F172A",
+          "backgroundColor": "#FFFFFF",
           "image": "./assets/images/logo1_transparent.png",
-          "imageWidth": 200
+          "imageWidth": 240
         }
       ],
       "@react-native-community/datetimepicker"
