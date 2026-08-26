@@ -9,7 +9,7 @@ dist/
 web-build/
 expo-env.d.ts
 
-# Native
+# Native keys and temporary files
 .kotlin/
 *.orig.*
 *.jks
@@ -17,6 +17,14 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+
+# Android build cache and outputs
+android/.gradle/
+android/app/build/
+android/build/
+android/.cxx/
+android/*.iml
+android/app/*.iml
 
 # Metro
 .metro-health-check*
@@ -35,9 +43,3 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
-
-example
-
-# generated native folders
-/ios
-/android
