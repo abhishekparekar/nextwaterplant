@@ -18,15 +18,19 @@ import { Customer } from '@/types/customer';
 import { formatCurrency } from '@/utils/invoiceUtils';
 import { Ionicons } from '@expo/vector-icons';
 
+import { useAuthStore } from '@/store/authStore';
+
 export default function CreateOrderScreen() {
+  const { user } = useAuthStore();
   const { customers, loading, fetchCustomers } = useCustomerStore();
   const { addOrder } = useOrderStore();
   const router = useRouter();
 
+  const defaultPrice = user?.pricePerJar || APP_CONFIG.defaultWaterPrice || 35;
   const [selectedCust, setSelectedCust] = useState<Customer | null>(null);
   const [custSearch, setCustSearch] = useState('');
   const [quantity, setQuantity] = useState(1);
-  const [pricePerUnit, setPricePerUnit] = useState(APP_CONFIG.defaultWaterPrice.toString());
+  const [pricePerUnit, setPricePerUnit] = useState(defaultPrice.toString());
   const [helperName, setHelperName] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);

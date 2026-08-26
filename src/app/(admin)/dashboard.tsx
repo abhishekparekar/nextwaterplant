@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -9,9 +9,13 @@ import {
   Alert, 
   Linking,
   KeyboardAvoidingView,
-  Platform 
+  Platform,
+  RefreshControl
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { collection, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { db } from '@/services/firebase';
 import { formatCurrency } from '@/utils/invoiceUtils';
 
 interface SubscriptionPlan {
@@ -30,102 +34,56 @@ interface PlantTenant {
   businessName: string;
   ownerName: string;
   phone: string;
+  email: string;
   address: string;
   planName: string;
   daysRemaining: number;
-  activeClients: number;
   status: 'active' | 'expired' | 'suspended';
-  lastRenewed: string;
+  createdAt: string;
 }
+
+const PLANS_CACHE_KEY = '@nextwater_saas_plans';
+
+const DEFAULT_PLANS: SubscriptionPlan[] = [
+  {
+    id: 'plan_starter',
+    name: 'Starter Plant Plan',
+    price: 499,
+    interval: 'Monthly',
+    clientLimit: 'Up to 50 Clients',
+    driverLimit: '1 Delivery Driver',
+    features: ['Daily Delivery Ledger', 'Basic Invoicing', 'Customer Portal'],
+    active: true,
+  },
+  {
+    id: 'plan_growth',
+    name: 'Growth Business Plan',
+    price: 999,
+    interval: 'Monthly',
+    clientLimit: 'Up to 250 Clients',
+    driverLimit: '3 Delivery Drivers',
+    features: ['Automated Billing & UPI QR', 'Driver GPS Routes', 'SMS / WhatsApp Alerts', 'Inventory Ledger'],
+    active: true,
+  },
+  {
+    id: 'plan_pro',
+    name: 'Enterprise Pro Plant',
+    price: 1999,
+    interval: 'Monthly',
+    clientLimit: 'Unlimited Clients',
+    driverLimit: 'Unlimited Drivers',
+    features: ['Full Multi-vehicle Dispatch', 'P&L Reports & Circular Gauges', 'Priority 24/7 Helpline', 'Custom Branding'],
+    active: true,
+  }
+];
 
 export default function SuperAdminDashboard() {
   const [activeTab, setActiveTab] = useState<'tenants' | 'plans' | 'settings'>('tenants');
+  const [loading, setLoading] = useState(false);
 
-  // Subscription Plans State
-  const [plans, setPlans] = useState<SubscriptionPlan[]>([
-    {
-      id: 'plan_starter',
-      name: 'Starter Plant Plan',
-      price: 499,
-      interval: 'Monthly',
-      clientLimit: 'Up to 50 Clients',
-      driverLimit: '1 Delivery Driver',
-      features: ['Daily Delivery Ledger', 'Basic Invoicing', 'Customer Portal'],
-      active: true,
-    },
-    {
-      id: 'plan_growth',
-      name: 'Growth Business Plan',
-      price: 999,
-      interval: 'Monthly',
-      clientLimit: 'Up to 250 Clients',
-      driverLimit: '3 Delivery Drivers',
-      features: ['Automated Billing & UPI QR', 'Driver GPS Routes', 'SMS / WhatsApp Alerts', 'Inventory Ledger'],
-      active: true,
-    },
-    {
-      id: 'plan_pro',
-      name: 'Enterprise Pro Plant',
-      price: 1999,
-      interval: 'Monthly',
-      clientLimit: 'Unlimited Clients',
-      driverLimit: 'Unlimited Drivers',
-      features: ['Full Multi-vehicle Dispatch', 'P&L Reports & Circular Gauges', 'Priority 24/7 Helpline', 'Custom Branding'],
-      active: true,
-    }
-  ]);
-
-  // Registered Water Plants (Tenants) State
-  const [tenants, setTenants] = useState<PlantTenant[]>([
-    {
-      id: 'tenant_01',
-      businessName: 'Abhiraj Water Plant',
-      ownerName: 'Abhishek Parekar',
-      phone: '8485877633',
-      address: 'Industrial MIDC, Sector 4, Water Hub',
-      planName: 'Enterprise Pro Plant',
-      daysRemaining: 14,
-      activeClients: 128,
-      status: 'active',
-      lastRenewed: '12-Aug-2026',
-    },
-    {
-      id: 'tenant_02',
-      businessName: 'Shiva Pure RO Water',
-      ownerName: 'Shivaji Rao',
-      phone: '9822334455',
-      address: 'Shop 4, Main Market, Pune Road',
-      planName: 'Growth Business Plan',
-      daysRemaining: 28,
-      activeClients: 84,
-      status: 'active',
-      lastRenewed: '22-Aug-2026',
-    },
-    {
-      id: 'tenant_03',
-      businessName: 'Krishna Springs Plant',
-      ownerName: 'Krishna Kulkarni',
-      phone: '9860112233',
-      address: 'Plot 12, Jal Vihar, Nashik',
-      planName: 'Starter Plant Plan',
-      daysRemaining: 0,
-      activeClients: 32,
-      status: 'expired',
-      lastRenewed: '26-Jul-2026',
-    },
-    {
-      id: 'tenant_04',
-      businessName: 'Balaji Cool Minerals',
-      ownerName: 'Balaji Shinde',
-      phone: '9423556677',
-      address: 'Station Road, MIDC Phase 2',
-      planName: 'Enterprise Pro Plant',
-      daysRemaining: 180,
-      activeClients: 210,
-      status: 'active',
-      lastRenewed: '01-Jul-2026',
-    }
-  ]);
+  // Real Registered Businesses from Firestore
+  const [tenants, setTenants] = useState<PlantTenant[]>([]);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>(DEFAULT_PLANS);
 
   // Modals
   const [planModalVisible, setPlanModalVisible] = useState(false);
@@ -140,11 +98,55 @@ export default function SuperAdminDashboard() {
   // Platform hotline
   const [helplineNumber, setHelplineNumber] = useState('8485877633');
 
-  // Stats calculation
-  const totalMRR = tenants.reduce((acc, t) => acc + (t.status === 'active' ? 1499 : 0), 0);
-  const totalClients = tenants.reduce((acc, t) => acc + t.activeClients, 0);
+  // Load Real Data from Firestore
+  const loadRealData = async () => {
+    setLoading(true);
+    try {
+      // 1. Fetch real registered users with role 'owner' from Firestore
+      const usersSnap = await getDocs(collection(db, 'tenants', 'waterplant', 'users'));
+      const realTenants: PlantTenant[] = [];
 
-  const handleCreatePlan = () => {
+      usersSnap.forEach((d) => {
+        const data = d.data();
+        if (data.role === 'owner') {
+          realTenants.push({
+            id: d.id,
+            businessName: data.businessName || 'Registered Water Plant',
+            ownerName: data.displayName || 'Plant Owner',
+            phone: data.phoneNumber || '8485877633',
+            email: data.email || '',
+            address: data.address || 'Plant Address',
+            planName: 'Enterprise Pro Plant',
+            daysRemaining: 30,
+            status: 'active',
+            createdAt: data.createdAt || new Date().toISOString(),
+          });
+        }
+      });
+
+      setTenants(realTenants);
+    } catch (err) {
+      console.warn('Error fetching Firestore tenants:', err);
+    }
+
+    // 2. Fetch or load cached plans
+    try {
+      const cachedPlans = await AsyncStorage.getItem(PLANS_CACHE_KEY);
+      if (cachedPlans) {
+        setPlans(JSON.parse(cachedPlans));
+      }
+    } catch (e) {}
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadRealData();
+  }, []);
+
+  const totalMRR = tenants.reduce((acc, t) => acc + (t.status === 'active' ? 999 : 0), 0);
+
+  const handleCreatePlan = async () => {
     if (!newPlanName.trim() || !newPlanPrice.trim()) {
       Alert.alert('Validation Error', 'Please fill Plan Name and Price.');
       return;
@@ -159,7 +161,12 @@ export default function SuperAdminDashboard() {
       features: ['Full Business Suite', 'WhatsApp Automation', 'Dedicated Support'],
       active: true,
     };
-    setPlans([newPlan, ...plans]);
+    const updated = [newPlan, ...plans];
+    setPlans(updated);
+    try {
+      await AsyncStorage.setItem(PLANS_CACHE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+
     setPlanModalVisible(false);
     setNewPlanName('');
     setNewPlanPrice('');
@@ -173,8 +180,7 @@ export default function SuperAdminDashboard() {
         return {
           ...t,
           daysRemaining: Math.max(0, t.daysRemaining) + days,
-          status: 'active',
-          lastRenewed: new Date().toLocaleDateString('en-IN')
+          status: 'active'
         };
       }
       return t;
@@ -186,185 +192,186 @@ export default function SuperAdminDashboard() {
   const handleToggleSuspend = (tenant: PlantTenant) => {
     const newStatus = tenant.status === 'suspended' ? 'active' : 'suspended';
     setTenants(tenants.map((t) => t.id === tenant.id ? { ...t, status: newStatus } : t));
-    Alert.alert('Status Updated', `${tenant.businessName} has been ${newStatus.toUpperCase()}.`);
+    Alert.alert('Status Updated', `${tenant.businessName} has been marked ${newStatus.toUpperCase()}.`);
   };
 
   return (
-    <View className="flex-1 bg-slate-100 dark:bg-slate-900">
-      {/* 1. TOP SAAS PLATFORM METRICS */}
-      <View className="bg-slate-900 px-4 pt-3 pb-3 border-b border-slate-800">
-        <View className="flex-row gap-2 mb-2">
-          <View className="flex-1 bg-slate-800/90 border border-slate-700/60 rounded-xl p-2.5">
-            <Text className="text-4xs font-bold text-sky-400 uppercase tracking-widest">Water Plants</Text>
-            <Text className="text-xl font-black text-white mt-0.5">{tenants.length}</Text>
-            <Text className="text-4xs text-emerald-400 font-semibold mt-0.5">
-              {tenants.filter(t => t.status === 'active').length} Active Paying
+    <View className="flex-1 bg-slate-50 dark:bg-slate-900">
+      {/* 1. TOP SEGMENTED CONTROLLER (MATCHING OWNER SCREEN UI/UX) */}
+      <View className="bg-sky-600 px-3 pt-1.5 pb-2.5">
+        <View className="flex-row bg-slate-200/90 dark:bg-slate-800/90 p-1 rounded-xl">
+          <TouchableOpacity
+            className={`flex-1 py-2 rounded-lg items-center justify-center ${activeTab === 'tenants' ? 'bg-white dark:bg-slate-700 shadow-xs' : 'bg-transparent'}`}
+            onPress={() => setActiveTab('tenants')}
+            activeOpacity={0.8}
+          >
+            <Text className={`text-xs font-black ${activeTab === 'tenants' ? 'text-slate-900 dark:text-slate-50' : 'text-slate-600 dark:text-slate-300'}`}>
+              Registered Plants ({tenants.length})
             </Text>
-          </View>
+          </TouchableOpacity>
 
-          <View className="flex-1 bg-slate-800/90 border border-slate-700/60 rounded-xl p-2.5">
-            <Text className="text-4xs font-bold text-emerald-400 uppercase tracking-widest">Est. Monthly MRR</Text>
-            <Text className="text-xl font-black text-emerald-300 mt-0.5">{formatCurrency(totalMRR)}</Text>
-            <Text className="text-4xs text-slate-400 font-semibold mt-0.5">Recurring SaaS</Text>
-          </View>
+          <TouchableOpacity
+            className={`flex-1 py-2 rounded-lg items-center justify-center ${activeTab === 'plans' ? 'bg-white dark:bg-slate-700 shadow-xs' : 'bg-transparent'}`}
+            onPress={() => setActiveTab('plans')}
+            activeOpacity={0.8}
+          >
+            <Text className={`text-xs font-black ${activeTab === 'plans' ? 'text-slate-900 dark:text-slate-50' : 'text-slate-600 dark:text-slate-300'}`}>
+              SaaS Plans ({plans.length})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            className={`flex-1 py-2 rounded-lg items-center justify-center ${activeTab === 'settings' ? 'bg-white dark:bg-slate-700 shadow-xs' : 'bg-transparent'}`}
+            onPress={() => setActiveTab('settings')}
+            activeOpacity={0.8}
+          >
+            <Text className={`text-xs font-black ${activeTab === 'settings' ? 'text-slate-900 dark:text-slate-50' : 'text-slate-600 dark:text-slate-300'}`}>
+              Platform Settings
+            </Text>
+          </TouchableOpacity>
         </View>
+      </View>
 
-        <View className="flex-row gap-2">
-          <View className="flex-1 bg-slate-800/90 border border-slate-700/60 rounded-xl p-2.5">
-            <Text className="text-4xs font-bold text-amber-400 uppercase tracking-widest">Network Clients</Text>
-            <Text className="text-lg font-black text-white mt-0.5">{totalClients}</Text>
-            <Text className="text-4xs text-slate-400 font-semibold mt-0.5">Across All Plants</Text>
+      {/* 2. TOP STATUS RIBBON (MATCHING OWNER SCREEN) */}
+      <View className="bg-white dark:bg-slate-800 border-b border-slate-200/80 dark:border-slate-800 px-3 py-2.5">
+        <View className="flex-row justify-between items-center">
+          <View className="items-center flex-1 border-r border-slate-100 dark:border-slate-800">
+            <Text className="text-4xs font-bold text-slate-400 uppercase">Live Plants</Text>
+            <Text className="text-xs font-black text-sky-600">{tenants.length} Registered</Text>
           </View>
-
-          <View className="flex-1 bg-slate-800/90 border border-slate-700/60 rounded-xl p-2.5">
-            <Text className="text-4xs font-bold text-indigo-400 uppercase tracking-widest">SaaS Plans</Text>
-            <Text className="text-lg font-black text-white mt-0.5">{plans.length} Live</Text>
-            <Text className="text-4xs text-sky-400 font-semibold mt-0.5">Auto-Renewal ON</Text>
+          <View className="items-center flex-1 border-r border-slate-100 dark:border-slate-800">
+            <Text className="text-4xs font-bold text-slate-400 uppercase">Platform MRR</Text>
+            <Text className="text-xs font-black text-emerald-600">{formatCurrency(totalMRR)}</Text>
+          </View>
+          <View className="items-center flex-1">
+            <Text className="text-4xs font-bold text-slate-400 uppercase">Helpline Status</Text>
+            <Text className="text-xs font-black text-indigo-600">Active (24/7)</Text>
           </View>
         </View>
       </View>
 
-      {/* 2. TAB CONTROLLER */}
-      <View className="flex-row bg-slate-800/95 border-b border-slate-700 px-3 py-2 gap-2">
-        <TouchableOpacity
-          onPress={() => setActiveTab('tenants')}
-          className={`flex-1 py-1.5 rounded-lg items-center ${activeTab === 'tenants' ? 'bg-sky-600' : 'bg-transparent'}`}
-          activeOpacity={0.7}
-        >
-          <Text className={`text-xs font-bold ${activeTab === 'tenants' ? 'text-white' : 'text-slate-400'}`}>
-            🏢 Water Plants ({tenants.length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => setActiveTab('plans')}
-          className={`flex-1 py-1.5 rounded-lg items-center ${activeTab === 'plans' ? 'bg-sky-600' : 'bg-transparent'}`}
-          activeOpacity={0.7}
-        >
-          <Text className={`text-xs font-bold ${activeTab === 'plans' ? 'text-white' : 'text-slate-400'}`}>
-            💎 SaaS Plans ({plans.length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => setActiveTab('settings')}
-          className={`flex-1 py-1.5 rounded-lg items-center ${activeTab === 'settings' ? 'bg-sky-600' : 'bg-transparent'}`}
-          activeOpacity={0.7}
-        >
-          <Text className={`text-xs font-bold ${activeTab === 'settings' ? 'text-white' : 'text-slate-400'}`}>
-            ⚙️ Platform
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* 3. TAB CONTENT */}
+      {/* 3. SCROLL CONTENT */}
       <ScrollView 
         className="flex-1 px-3.5 py-3" 
-        contentContainerStyle={{ paddingBottom: 60 }}
+        contentContainerStyle={{ paddingBottom: 70 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={loadRealData} colors={['#0284C7']} />}
       >
         {/* ========================================================================= */}
-        {/* TAB 1: WATER PLANTS / TENANTS LIST */}
+        {/* TAB 1: REAL REGISTERED WATER PLANTS (TENANTS) */}
         {/* ========================================================================= */}
         {activeTab === 'tenants' && (
           <View className="gap-2.5">
             <View className="flex-row justify-between items-center mb-1">
               <Text className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                Registered Plant Tenants
+                Firestore Registered Businesses
               </Text>
               <Text className="text-3xs text-slate-500 font-bold">
-                Auto Cloud Backup Enabled
+                Live Cloud Sync
               </Text>
             </View>
 
-            {tenants.map((plant) => {
-              const isExpired = plant.daysRemaining <= 0;
-              const isSuspended = plant.status === 'suspended';
+            {tenants.length === 0 ? (
+              <View className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 items-center my-4">
+                <Ionicons name="business-outline" size={40} color="#94A3B8" />
+                <Text className="text-sm font-black text-slate-800 dark:text-slate-200 mt-2 text-center">
+                  No Registered Businesses Found
+                </Text>
+                <Text className="text-xs text-slate-500 text-center mt-1">
+                  When a new water plant owner registers their business on the platform, their plant details and subscription status will automatically appear here.
+                </Text>
+              </View>
+            ) : (
+              tenants.map((plant) => {
+                const isSuspended = plant.status === 'suspended';
 
-              return (
-                <View 
-                  key={plant.id}
-                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-3.5 shadow-2xs"
-                >
-                  <View className="flex-row justify-between items-start mb-2">
-                    <View className="flex-1 pr-2">
-                      <Text className="text-sm font-black text-slate-900 dark:text-slate-50">
-                        {plant.businessName}
-                      </Text>
-                      <Text className="text-3xs font-semibold text-slate-500 mt-0.5">
-                        Owner: <Text className="text-slate-700 dark:text-slate-300 font-bold">{plant.ownerName}</Text> • 📞 {plant.phone}
-                      </Text>
-                      <Text className="text-4xs text-slate-400 mt-0.5" numberOfLines={1}>
-                        📍 {plant.address}
-                      </Text>
-                    </View>
-
-                    <View className="items-end">
-                      <View className={`px-2 py-0.5 rounded-full ${
-                        isSuspended ? 'bg-rose-100 text-rose-700' : isExpired ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-                      }`}>
-                        <Text className={`text-4xs font-black uppercase ${
-                          isSuspended ? 'text-rose-700' : isExpired ? 'text-amber-700' : 'text-emerald-700'
-                        }`}>
-                          {isSuspended ? 'SUSPENDED' : isExpired ? 'EXPIRED' : 'ACTIVE'}
+                return (
+                  <View 
+                    key={plant.id}
+                    className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/70 rounded-2xl p-3.5 shadow-2xs"
+                  >
+                    <View className="flex-row justify-between items-start mb-2">
+                      <View className="flex-1 pr-2">
+                        <Text className="text-sm font-black text-slate-900 dark:text-slate-50">
+                          {plant.businessName}
+                        </Text>
+                        <Text className="text-3xs font-semibold text-slate-500 mt-0.5">
+                          Owner: <Text className="text-slate-700 dark:text-slate-300 font-bold">{plant.ownerName}</Text> • 📞 {plant.phone}
+                        </Text>
+                        <Text className="text-4xs text-slate-400 mt-0.5" numberOfLines={1}>
+                          📍 {plant.address}
                         </Text>
                       </View>
-                      <Text className="text-3xs font-bold text-sky-600 mt-1">
-                        {plant.daysRemaining} Days Left
-                      </Text>
+
+                      <View className="items-end">
+                        <View className={`px-2 py-0.5 rounded-full ${
+                          isSuspended ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          <Text className={`text-4xs font-black uppercase ${
+                            isSuspended ? 'text-rose-700' : 'text-emerald-700'
+                          }`}>
+                            {isSuspended ? 'SUSPENDED' : 'ACTIVE'}
+                          </Text>
+                        </View>
+                        <Text className="text-3xs font-bold text-sky-600 mt-1">
+                          {plant.daysRemaining} Days Left
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View className="bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded-xl flex-row justify-between items-center mb-2.5 border border-slate-100 dark:border-slate-800">
+                      <View>
+                        <Text className="text-4xs font-bold text-slate-400 uppercase">Subscribed Plan</Text>
+                        <Text className="text-xs font-black text-slate-800 dark:text-slate-100">{plant.planName}</Text>
+                      </View>
+                      <View className="items-end">
+                        <Text className="text-4xs font-bold text-slate-400 uppercase">Registered Date</Text>
+                        <Text className="text-xs font-black text-indigo-600 dark:text-indigo-400">
+                          {plant.createdAt ? plant.createdAt.split('T')[0] : 'Live'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Action Buttons */}
+                    <View className="flex-row gap-2 pt-1 border-t border-slate-100 dark:border-slate-700/50">
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSelectedTenant(plant);
+                          setRenewModalVisible(true);
+                        }}
+                        className="flex-1 bg-sky-600 py-2 rounded-lg flex-row justify-center items-center gap-1 active:opacity-75"
+                      >
+                        <Ionicons name="refresh" size={13} color="#FFF" />
+                        <Text className="text-3xs font-black text-white">Renew / Add Days</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(`tel:${plant.phone}`).catch(() => {})}
+                        className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-3 py-2 rounded-lg flex-row items-center gap-1"
+                      >
+                        <Ionicons name="call" size={12} color="#059669" />
+                        <Text className="text-3xs font-bold text-emerald-600">Call</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(`https://wa.me/91${plant.phone.replace(/[^0-9]/g, '')}`).catch(() => {})}
+                        className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-3 py-2 rounded-lg flex-row items-center gap-1"
+                      >
+                        <Ionicons name="logo-whatsapp" size={12} color="#059669" />
+                        <Text className="text-3xs font-bold text-emerald-600">WA</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => handleToggleSuspend(plant)}
+                        className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 px-2.5 py-2 rounded-lg justify-center items-center"
+                      >
+                        <Ionicons name={isSuspended ? "play" : "pause"} size={12} color="#E11D48" />
+                      </TouchableOpacity>
                     </View>
                   </View>
-
-                  <View className="bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded-xl flex-row justify-between items-center mb-2.5 border border-slate-100 dark:border-slate-800">
-                    <View>
-                      <Text className="text-4xs font-bold text-slate-400 uppercase">Subscribed Plan</Text>
-                      <Text className="text-xs font-black text-slate-800 dark:text-slate-100">{plant.planName}</Text>
-                    </View>
-                    <View className="items-end">
-                      <Text className="text-4xs font-bold text-slate-400 uppercase">Active Clients</Text>
-                      <Text className="text-xs font-black text-indigo-600 dark:text-indigo-400">{plant.activeClients} Clients</Text>
-                    </View>
-                  </View>
-
-                  {/* Action Buttons */}
-                  <View className="flex-row gap-2 pt-1 border-t border-slate-100 dark:border-slate-700/50">
-                    <TouchableOpacity
-                      onPress={() => {
-                        setSelectedTenant(plant);
-                        setRenewModalVisible(true);
-                      }}
-                      className="flex-1 bg-sky-600 py-2 rounded-lg flex-row justify-center items-center gap-1 active:opacity-75"
-                    >
-                      <Ionicons name="refresh" size={13} color="#FFF" />
-                      <Text className="text-3xs font-black text-white">Renew / Add Days</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={() => Linking.openURL(`tel:${plant.phone}`).catch(() => {})}
-                      className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-3 py-2 rounded-lg flex-row items-center gap-1"
-                    >
-                      <Ionicons name="call" size={12} color="#059669" />
-                      <Text className="text-3xs font-bold text-emerald-600">Call</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={() => Linking.openURL(`https://wa.me/91${plant.phone.replace(/[^0-9]/g, '')}`).catch(() => {})}
-                      className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-3 py-2 rounded-lg flex-row items-center gap-1"
-                    >
-                      <Ionicons name="logo-whatsapp" size={12} color="#059669" />
-                      <Text className="text-3xs font-bold text-emerald-600">WA</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={() => handleToggleSuspend(plant)}
-                      className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 px-2.5 py-2 rounded-lg justify-center items-center"
-                    >
-                      <Ionicons name={isSuspended ? "play" : "pause"} size={12} color="#E11D48" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              );
-            })}
+                );
+              })
+            )}
           </View>
         )}
 
@@ -425,7 +432,7 @@ export default function SuperAdminDashboard() {
                 <View className="flex-row justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-700/50">
                   <Text className="text-4xs font-bold text-emerald-600">● Live on Registration Screen</Text>
                   <TouchableOpacity
-                    onPress={() => Alert.alert('Edit Plan', `Modify parameters for ${plan.name}`)}
+                    onPress={() => Alert.alert('Configure Plan', `Modify parameters for ${plan.name}`)}
                     className="bg-slate-100 dark:bg-slate-700 px-3 py-1 rounded-lg"
                   >
                     <Text className="text-3xs font-bold text-slate-700 dark:text-slate-200">Configure</Text>
@@ -469,10 +476,10 @@ export default function SuperAdminDashboard() {
 
             <View className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 shadow-2xs">
               <Text className="text-xs font-black text-slate-900 dark:text-slate-100 mb-2 uppercase tracking-wider">
-                Broadcast Announcement
+                Broadcast System Announcement
               </Text>
               <Text className="text-3xs text-slate-500 mb-3">
-                Push high-priority update banner to all 14 active water plants.
+                Push high-priority update banner to all live registered water plants.
               </Text>
 
               <TouchableOpacity

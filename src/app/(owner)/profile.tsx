@@ -32,6 +32,8 @@ export default function ProfileScreen() {
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '8485877633');
   const [whatsappNumber, setWhatsappNumber] = useState(user?.whatsappNumber || '8485877633');
   const [address, setAddress] = useState(user?.address || 'Industrial MIDC, Sector 4, Water Hub');
+  const [pricePerJar, setPricePerJar] = useState(user?.pricePerJar?.toString() || '35');
+  const [depositPerJar, setDepositPerJar] = useState(user?.depositPerJar?.toString() || '150');
   const [gstin, setGstin] = useState('27AAACN1234F1Z5');
   const [dailyCapacity, setDailyCapacity] = useState('350 Jars (7,000 L)');
   const [saving, setSaving] = useState(false);
@@ -42,6 +44,8 @@ export default function ProfileScreen() {
     setPhoneNumber(user?.phoneNumber || '8485877633');
     setWhatsappNumber(user?.whatsappNumber || '8485877633');
     setAddress(user?.address || 'Industrial MIDC, Sector 4, Water Hub');
+    setPricePerJar(user?.pricePerJar?.toString() || '35');
+    setDepositPerJar(user?.depositPerJar?.toString() || '150');
     setModalVisible(true);
   };
 
@@ -74,9 +78,11 @@ export default function ProfileScreen() {
         phoneNumber: phoneNumber.trim(),
         whatsappNumber: whatsappNumber.trim(),
         address: address.trim(),
+        pricePerJar: parseFloat(pricePerJar) || 35,
+        depositPerJar: parseFloat(depositPerJar) || 150,
       });
 
-      Alert.alert('Success', 'Plant profile and support contact numbers updated successfully.');
+      Alert.alert('Success', `Plant profile and default 20L jar pricing (₹${pricePerJar}) updated successfully.`);
       setModalVisible(false);
     } catch (err: any) {
       Alert.alert('Update Failed', err.message || 'Could not update profile.');
@@ -253,7 +259,13 @@ export default function ProfileScreen() {
 
         <View className="flex-row justify-between items-center py-1.5">
           <Text className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Standard 20L Jar Price</Text>
-          <Text className="text-[13px] font-black text-emerald-600">₹35.00 / Jar</Text>
+          <Text className="text-[13px] font-black text-emerald-600">₹{user?.pricePerJar || pricePerJar}.00 / Jar</Text>
+        </View>
+        <View className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
+
+        <View className="flex-row justify-between items-center py-1.5">
+          <Text className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Jar Security Deposit</Text>
+          <Text className="text-[13px] font-black text-indigo-600">₹{user?.depositPerJar || depositPerJar}.00 / Jar</Text>
         </View>
         <View className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
 
@@ -287,7 +299,7 @@ export default function ProfileScreen() {
           <View className="bg-white dark:bg-slate-800 rounded-t-3xl p-5 pb-8 max-h-[85%]">
             <View className="flex-row justify-between items-center pb-3 mb-3 border-b border-slate-100 dark:border-slate-700/60">
               <Text className="text-sm font-black text-slate-900 dark:text-slate-100">
-                Edit Plant & Helpline Numbers
+                Edit Plant Details & Jar Pricing
               </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)} className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 justify-center items-center">
                 <Ionicons name="close" size={18} color="#64748B" />
@@ -308,6 +320,27 @@ export default function ProfileScreen() {
                 onChangeText={setDisplayName}
                 placeholder="e.g. Abhishek"
               />
+
+              <View className="flex-row gap-2">
+                <View className="flex-1">
+                  <Input
+                    label="Standard 20L Jar Price (₹) *"
+                    value={pricePerJar}
+                    onChangeText={setPricePerJar}
+                    keyboardType="numeric"
+                    placeholder="e.g. 35"
+                  />
+                </View>
+                <View className="flex-1">
+                  <Input
+                    label="Deposit per Jar (₹) *"
+                    value={depositPerJar}
+                    onChangeText={setDepositPerJar}
+                    keyboardType="numeric"
+                    placeholder="e.g. 150"
+                  />
+                </View>
+              </View>
 
               <Input
                 label="Plant Calling Support Number *"

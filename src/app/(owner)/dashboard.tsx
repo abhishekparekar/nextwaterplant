@@ -255,15 +255,17 @@ export default function OwnerDashboard() {
               <View className="flex-row justify-between items-center">
                 <View className="items-center flex-1 border-r border-slate-100 dark:border-slate-800">
                   <Text className="text-4xs font-bold text-slate-400 uppercase">Stock Ready</Text>
-                  <Text className="text-xs font-black text-sky-600">420 Jars</Text>
+                  <Text className="text-xs font-black text-sky-600">Pure RO Jars</Text>
                 </View>
                 <View className="items-center flex-1 border-r border-slate-100 dark:border-slate-800">
                   <Text className="text-4xs font-bold text-slate-400 uppercase">Drivers Active</Text>
-                  <Text className="text-xs font-black text-emerald-600">2 on Route</Text>
+                  <Text className="text-xs font-black text-emerald-600">On Duty</Text>
                 </View>
                 <View className="items-center flex-1">
                   <Text className="text-4xs font-bold text-slate-400 uppercase">Rate / 20L</Text>
-                  <Text className="text-xs font-black text-indigo-600">₹35.00</Text>
+                  <Text className="text-xs font-black text-indigo-600">
+                    {user?.pricePerJar ? `₹${user.pricePerJar}.00` : '₹35.00'}
+                  </Text>
                 </View>
               </View>
             </View>

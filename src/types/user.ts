@@ -11,6 +11,8 @@ export interface UserProfile {
   supportPhone?: string;
   businessName?: string;
   address?: string;
+  pricePerJar?: number;
+  depositPerJar?: number;
   customerId?: string;
   createdAt: string;
   updatedAt: string;
