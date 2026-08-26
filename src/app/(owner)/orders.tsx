@@ -59,6 +59,25 @@ export default function OrdersScreen() {
     );
   };
 
+  const handleNavigateToOrder = (orderId: string) => {
+    try {
+      router.push(`/order/${orderId}` as any);
+    } catch (e) {}
+  };
+
+  const handleNavigateToCreate = () => {
+    try {
+      router.push('/order/create' as any);
+    } catch (e) {}
+  };
+
+  const handleNavigateToAddHelper = () => {
+    setAssignModalVisible(false);
+    try {
+      router.push('/(owner)/add-helper' as any);
+    } catch (e) {}
+  };
+
   const handleSelectAllPending = () => {
     if (selectedOrderIds.length === pendingOrders.length && pendingOrders.length > 0) {
       setSelectedOrderIds([]);
@@ -259,7 +278,7 @@ export default function OrdersScreen() {
                     )}
 
                     <TouchableOpacity 
-                      onPress={() => router.push(`/order/${item.id}`)}
+                      onPress={() => handleNavigateToOrder(item.id)}
                       className="flex-1"
                     >
                       <Text className="text-base font-extrabold text-slate-900 dark:text-slate-50">
@@ -410,10 +429,7 @@ export default function OrdersScreen() {
                     No active delivery staff found.
                   </Text>
                   <TouchableOpacity 
-                    onPress={() => {
-                      setAssignModalVisible(false);
-                      router.push('/(owner)/add-helper');
-                    }}
+                    onPress={handleNavigateToAddHelper}
                     className="mt-3 bg-sky-600 px-4 py-2 rounded-xl"
                   >
                     <Text className="text-xs font-black text-white">+ Add Staff Driver</Text>
@@ -459,7 +475,7 @@ export default function OrdersScreen() {
       {selectedOrderIds.length === 0 && (
         <TouchableOpacity 
           className="absolute bottom-6 right-6 bg-sky-600 w-14 h-14 rounded-full justify-center items-center shadow-lg active:opacity-85 shadow-sky-600/40"
-          onPress={() => router.push('/order/create')}
+          onPress={handleNavigateToCreate}
           activeOpacity={0.8}
         >
           <Ionicons name="add" size={30} color="#FFF" />
