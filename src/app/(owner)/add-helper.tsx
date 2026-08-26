@@ -247,16 +247,21 @@ export default function StaffManagementScreen() {
                   {/* Active / Stop Toggle Switch */}
                   <TouchableOpacity
                     onPress={() => handleToggleStatus(staff)}
-                    className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border ${
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    className={`px-3 py-1.5 rounded-full flex-row items-center gap-1.5 border shadow-2xs ${
                       isActive 
-                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800' 
-                        : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800'
+                        ? 'bg-emerald-600 border-emerald-600' 
+                        : 'bg-rose-600 border-rose-600'
                     }`}
-                    activeOpacity={0.7}
+                    activeOpacity={0.8}
                   >
-                    <View className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                    <Text className={`text-4xs font-black uppercase ${isActive ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>
-                      {isActive ? 'Active' : 'Stopped'}
+                    <Ionicons 
+                      name={isActive ? "checkmark-circle" : "pause-circle"} 
+                      size={14} 
+                      color="#FFFFFF" 
+                    />
+                    <Text className="text-3xs font-black uppercase text-white tracking-wide">
+                      {isActive ? 'Active (ON)' : 'Stopped (OFF)'}
                     </Text>
                   </TouchableOpacity>
                 </View>
