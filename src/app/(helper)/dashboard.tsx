@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -34,12 +34,44 @@ export default function HelperDashboard() {
   const [emptyReturned, setEmptyReturned] = useState(0);
   const [cashCollected, setCashCollected] = useState('0');
   const [submitting, setSubmitting] = useState(false);
+  const [assignedOrders, setAssignedOrders] = useState<Delivery[]>([]);
+
+  const loadDriverRuns = async () => {
+    if (user?.uid) {
+      await fetchHelperDeliveries(user.uid);
+    }
+    // Also fetch assigned orders directly from Firestore
+    try {
+      const { getTenantCollection } = await import('@/services/firebase');
+      const { getDocs, query, where } = await import('firebase/firestore');
+      const snap = await getDocs(query(getTenantCollection('orders'), where('status', '==', 'assigned')));
+      const runs: Delivery[] = [];
+      snap.forEach((d) => {
+        const o = d.data();
+        const bottleQty = o.items ? o.items.reduce((s: number, i: any) => s + i.quantity, 0) : 1;
+        runs.push({
+          id: d.id,
+          orderId: d.id,
+          helperId: o.assignedHelperId || user?.uid || '',
+          helperName: o.assignedHelperName || user?.displayName || 'Driver',
+          customerId: o.customerId,
+          customerName: o.customerName,
+          bottlesDelivered: bottleQty,
+          emptyBottlesReturned: 0,
+          cashCollected: 0,
+          status: 'in_progress',
+          scheduledDate: o.deliveryDate || new Date().toISOString(),
+          createdAt: o.createdAt || new Date().toISOString(),
+          updatedAt: o.updatedAt || new Date().toISOString()
+        });
+      });
+      setAssignedOrders(runs);
+    } catch (e) {}
+  };
 
   useEffect(() => {
-    if (user?.uid) {
-      fetchHelperDeliveries(user.uid);
-    }
-  }, [user, fetchHelperDeliveries]);
+    loadDriverRuns();
+  }, [user]);
 
   const openCompletionModal = (item: Delivery) => {
     setSelectedDelivery(item);
@@ -63,13 +95,24 @@ export default function HelperDashboard() {
         emptyBottlesReturned: emptyReturned,
         cashCollected: cash,
       });
+
+      // Also update matching order in Firestore
+      try {
+        const { getTenantCollection } = await import('@/services/firebase');
+        const { doc, updateDoc } = await import('firebase/firestore');
+        const orderDocRef = doc(getTenantCollection('orders'), selectedDelivery.orderId || selectedDelivery.id);
+        await updateDoc(orderDocRef, {
+          status: 'delivered',
+          paymentStatus: cash > 0 ? 'paid' : 'pending',
+          amountPaid: cash,
+          updatedAt: new Date().toISOString()
+        });
+      } catch (e) {}
       
-      Alert.alert('Success', 'Delivery completed and logged successfully.');
+      Alert.alert('Success', `Delivery completed! Empty Jars Collected: ${emptyReturned}, Cash: ₹${cash}`);
       setModalVisible(false);
       setSelectedDelivery(null);
-      if (user?.uid) {
-        fetchHelperDeliveries(user.uid);
-      }
+      loadDriverRuns();
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to update run status');
     } finally {
@@ -77,7 +120,16 @@ export default function HelperDashboard() {
     }
   };
 
-  const activeDeliveries = deliveries.filter((d) => d.status !== 'completed' && d.status !== 'failed');
+  const allActiveRuns = useMemo(() => {
+    const list = [...deliveries.filter((d) => d.status !== 'completed' && d.status !== 'failed')];
+    assignedOrders.forEach((ao) => {
+      if (!list.some((existing) => existing.id === ao.id || existing.orderId === ao.orderId)) {
+        list.push(ao);
+      }
+    });
+    return list;
+  }, [deliveries, assignedOrders]);
+
   const completedCount = deliveries.filter((d) => d.status === 'completed').length;
 
   return (
@@ -115,7 +167,7 @@ export default function HelperDashboard() {
           <View className="flex-1 bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-800/40 rounded-xl p-2.5 flex-row items-center gap-2">
             <Ionicons name="time" size={18} color="#D97706" />
             <View>
-              <Text className="text-base font-black text-amber-900 dark:text-amber-100">{activeDeliveries.length}</Text>
+              <Text className="text-base font-black text-amber-900 dark:text-amber-100">{allActiveRuns.length}</Text>
               <Text className="text-4xs font-bold text-amber-600 dark:text-amber-400 uppercase">Remaining</Text>
             </View>
           </View>
@@ -148,7 +200,7 @@ export default function HelperDashboard() {
         <Loader />
       ) : (
         <FlatList
-          data={activeDeliveries}
+          data={allActiveRuns}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
@@ -159,7 +211,7 @@ export default function HelperDashboard() {
             />
           )}
           ListEmptyComponent={
-            <EmptyState message="All caught up! No pending deliveries on your route right now." iconName="happy-outline" />
+            <EmptyState message="All caught up! No pending deliveries assigned to your route right now." iconName="happy-outline" />
           }
         />
       )}

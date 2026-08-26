@@ -126,6 +126,19 @@ export const orderService = {
   },
 
   /**
+   * Assign driver to an order
+   */
+  async assignHelper(id: string, helperId: string, helperName: string): Promise<void> {
+    const docRef = doc(db, 'tenants', 'waterplant', COLLECTION_NAME, id);
+    await updateDoc(docRef, {
+      assignedHelperId: helperId,
+      assignedHelperName: helperName,
+      status: 'assigned',
+      updatedAt: new Date().toISOString()
+    });
+  },
+
+  /**
    * Update generic order fields
    */
   async update(id: string, updates: Partial<Omit<Order, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> {

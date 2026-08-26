@@ -5,7 +5,9 @@ import {
   ScrollView, 
   TouchableOpacity,
   TextInput,
-  Alert
+  Alert,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useCustomerStore } from '@/store/customerStore';
@@ -72,10 +74,12 @@ export default function CreateOrderScreen() {
       await addOrder({
         customerId: selectedCust.id,
         customerName: selectedCust.name,
+        customerPhone: selectedCust.phone,
+        deliveryAddress: selectedCust.address,
         items: [
           {
-            itemId: '20l-water-bottle',
-            itemName: '20L Water Bottle',
+            itemId: 'jar-20l',
+            itemName: '20L RO Water Jar',
             quantity: quantity,
             pricePerUnit: priceNum,
             totalPrice: totalAmount,
@@ -85,13 +89,12 @@ export default function CreateOrderScreen() {
         status: 'pending',
         paymentStatus: 'pending',
         amountPaid: 0,
-        deliveryAddress: selectedCust.address,
         deliveryDate: new Date().toISOString(),
-        assignedHelperName: helperName ? helperName.trim() : undefined,
-        notes: notes ? notes.trim() : undefined,
+        assignedHelperName: helperName.trim() || undefined,
+        notes: notes.trim() || undefined,
       });
 
-      Alert.alert('Success', 'Water delivery order created successfully.');
+      Alert.alert('Success', 'Order created and dispatched successfully!');
       router.back();
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to create order');
@@ -105,31 +108,36 @@ export default function CreateOrderScreen() {
   }
 
   return (
-    <ScrollView 
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
       className="flex-1 bg-slate-50 dark:bg-slate-900"
-      contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-      showsVerticalScrollIndicator={false}
     >
-      {/* 1. Customer Selection Card */}
-      <View className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 rounded-2xl p-4 mb-4 shadow-2xs">
-        <View className="flex-row items-center gap-2 mb-3">
-          <Ionicons name="person" size={18} color="#0284c7" />
-          <Text className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-            Select Customer *
-          </Text>
-        </View>
+      <ScrollView 
+        className="flex-1"
+        contentContainerStyle={{ padding: 16, paddingBottom: 150 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 1. Customer Selection Card */}
+        <View className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 rounded-2xl p-4 mb-4 shadow-2xs">
+          <View className="flex-row items-center gap-2 mb-3">
+            <Ionicons name="person" size={18} color="#0284c7" />
+            <Text className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+              Select Customer *
+            </Text>
+          </View>
 
-        {/* Customer Search */}
-        <View className="flex-row items-center bg-slate-100 dark:bg-slate-900 rounded-xl px-3 py-2 mb-3">
-          <Ionicons name="search-outline" size={16} color="#94a3b8" />
-          <TextInput
-            placeholder="Search customer by name or phone..."
-            placeholderTextColor="#94a3b8"
-            value={custSearch}
-            onChangeText={setCustSearch}
-            className="flex-1 text-xs font-medium text-slate-800 dark:text-slate-100 ml-2 py-0"
-          />
-        </View>
+          {/* Customer Search */}
+          <View className="flex-row items-center bg-slate-100 dark:bg-slate-900 rounded-xl px-3 py-2 mb-3">
+            <Ionicons name="search-outline" size={16} color="#94a3b8" />
+            <TextInput
+              placeholder="Search customer by name or phone..."
+              placeholderTextColor="#94a3b8"
+              value={custSearch}
+              onChangeText={setCustSearch}
+              className="flex-1 text-xs font-medium text-slate-800 dark:text-slate-100 ml-2 py-0"
+            />
+          </View>
 
         {/* Horizontal Chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row mb-2">
@@ -287,5 +295,6 @@ export default function CreateOrderScreen() {
         />
       </View>
     </ScrollView>
+  </KeyboardAvoidingView>
   );
 }
