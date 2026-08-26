@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter, useRootNavigationState } from 'expo-router';
 import { 
   View, 
   Text, 
@@ -15,6 +15,7 @@ import { ROUTES } from '@/constants/routes';
 export default function IndexScreen() {
   const { isAuthenticated, role, loading } = useAuth();
   const router = useRouter();
+  const rootNavState = useRootNavigationState();
   const [showSplash, setShowSplash] = useState(true);
 
   const logoOpacity = useRef(new Animated.Value(0)).current;
@@ -50,6 +51,8 @@ export default function IndexScreen() {
   }, []);
 
   useEffect(() => {
+    if (!rootNavState?.key) return; // Wait until Expo Router is mounted
+
     if (!loading && !showSplash) {
       if (isAuthenticated) {
         if (role === 'superadmin') {
@@ -67,7 +70,7 @@ export default function IndexScreen() {
         router.replace(ROUTES.LOGIN);
       }
     }
-  }, [isAuthenticated, role, loading, showSplash, router]);
+  }, [rootNavState?.key, isAuthenticated, role, loading, showSplash, router]);
 
   return (
     <View className="flex-1 bg-white dark:bg-slate-900 justify-between items-center px-6 py-14">

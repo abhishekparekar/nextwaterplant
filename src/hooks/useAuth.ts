@@ -8,35 +8,49 @@ export const useAuth = () => {
   const { user, setUser, loading, setLoading } = useAuthStore();
 
   useEffect(() => {
+    let isMounted = true;
     setLoading(true);
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!isMounted) return;
+
       if (firebaseUser) {
         try {
           const profile = await authService.getProfile(firebaseUser.uid);
-          if (profile) {
-            setUser(profile);
-          } else {
-            // Fallback profile if Firestore is missing
-            setUser({
-              uid: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              displayName: firebaseUser.displayName || 'User',
-              role: 'owner', // Default role
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            });
+          if (isMounted) {
+            if (profile) {
+              setUser(profile);
+            } else {
+              setUser({
+                uid: firebaseUser.uid,
+                email: firebaseUser.email || '',
+                displayName: firebaseUser.displayName || 'User',
+                role: 'owner',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              });
+            }
           }
         } catch (error) {
-          console.error('Error fetching user profile:', error);
-          setUser(null);
+          if (isMounted) {
+            setUser(null);
+          }
         }
       } else {
-        setUser(null);
+        if (isMounted) {
+          setUser(null);
+        }
       }
-      setLoading(false);
+
+      if (isMounted) {
+        setLoading(false);
+      }
     });
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [setUser, setLoading]);
 
   return {
