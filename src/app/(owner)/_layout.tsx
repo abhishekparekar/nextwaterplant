@@ -115,7 +115,11 @@ export default function OwnerLayout() {
 
   const renderBackButton = () => (
     <TouchableOpacity 
-      onPress={() => router.replace('/(owner)/dashboard')}
+      onPress={() => {
+        try {
+          router.replace('/(owner)/dashboard');
+        } catch (e) {}
+      }}
       style={{ paddingLeft: 16 }}
       activeOpacity={0.7}
     >

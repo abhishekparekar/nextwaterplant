@@ -254,11 +254,11 @@ export default function OrdersScreen() {
 
             return (
               <View 
-                className={`bg-white dark:bg-slate-800 border ${
+                className={`bg-white dark:bg-slate-800 border-2 ${
                   isSelected 
-                    ? 'border-sky-500 ring-2 ring-sky-500/20 bg-sky-50/20 dark:bg-sky-950/20' 
+                    ? 'border-sky-500 bg-sky-50/30 dark:bg-sky-950/30' 
                     : 'border-slate-100 dark:border-slate-700/60'
-                } rounded-2xl p-4 mb-3 shadow-2xs`}
+                } rounded-2xl p-4 mb-3`}
               >
                 {/* Header Row with Checkbox */}
                 <View className="flex-row justify-between items-start mb-2">
