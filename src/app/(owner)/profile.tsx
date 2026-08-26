@@ -17,14 +17,15 @@ import { Input } from '@/components/common/Input';
 import { ROUTES } from '@/constants/routes';
 import { Ionicons } from '@expo/vector-icons';
 
+import { pickImageFromGallery } from '@/utils/imagePicker';
+
 export default function ProfileScreen() {
   const { user, signOut, updateProfile, loading } = useAuthStore();
   const router = useRouter();
 
   // Modal State for Editing Profile
   const [modalVisible, setModalVisible] = useState(false);
-  const [photoModalVisible, setPhotoModalVisible] = useState(false);
-  const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   const [businessName, setBusinessName] = useState(user?.businessName || 'Abhiraj Water Plant');
   const [displayName, setDisplayName] = useState(user?.displayName || 'Abhishek');
@@ -35,14 +36,6 @@ export default function ProfileScreen() {
   const [dailyCapacity, setDailyCapacity] = useState('350 Jars (7,000 L)');
   const [saving, setSaving] = useState(false);
 
-  const avatarOptions = [
-    { id: '1', name: 'Water Drop Logo', icon: 'water', bg: '#0284C7', color: '#FFF' },
-    { id: '2', name: 'Executive Plant Boss', icon: 'person', bg: '#2563EB', color: '#FFF' },
-    { id: '3', name: 'Pure Springs Eco', icon: 'leaf', bg: '#059669', color: '#FFF' },
-    { id: '4', name: 'RO Industrial Plant', icon: 'business', bg: '#0D9488', color: '#FFF' },
-    { id: '5', name: 'Logistics Fleet', icon: 'bus', bg: '#D97706', color: '#FFF' },
-  ];
-
   const openEditModal = () => {
     setBusinessName(user?.businessName || 'Abhiraj Water Plant');
     setDisplayName(user?.displayName || 'Abhishek');
@@ -50,6 +43,21 @@ export default function ProfileScreen() {
     setWhatsappNumber(user?.whatsappNumber || '8485877633');
     setAddress(user?.address || 'Industrial MIDC, Sector 4, Water Hub');
     setModalVisible(true);
+  };
+
+  const handlePickGalleryPhoto = async () => {
+    try {
+      setPhotoUploading(true);
+      const uri = await pickImageFromGallery();
+      if (uri) {
+        await updateProfile({ photoURL: uri });
+        Alert.alert('Profile Photo Updated', 'Your profile picture has been updated from gallery successfully!');
+      }
+    } catch (e: any) {
+      Alert.alert('Upload Error', e.message || 'Failed to update photo.');
+    } finally {
+      setPhotoUploading(false);
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -86,11 +94,6 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleCropAndSavePhoto = () => {
-    setPhotoModalVisible(false);
-    Alert.alert('Profile Photo Set', 'Profile photo cropped and updated successfully!');
-  };
-
   return (
     <ScrollView 
       className="flex-1 bg-slate-50 dark:bg-slate-900 px-3.5 py-3" 
@@ -101,9 +104,9 @@ export default function ProfileScreen() {
       <View className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 items-center shadow-2xs mb-3">
         {/* Avatar with Camera Crop Badge */}
         <View className="relative mb-2">
-          <View className="w-18 h-18 rounded-full bg-sky-600 justify-center items-center shadow-sm overflow-hidden">
-            {selectedAvatar ? (
-              <Ionicons name="water" size={36} color="#FFF" />
+          <View className="w-20 h-20 rounded-full bg-sky-600 justify-center items-center shadow-sm overflow-hidden border-2 border-sky-200 dark:border-sky-800">
+            {user?.photoURL ? (
+              <Image source={{ uri: user.photoURL }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
             ) : (
               <Text className="text-2xl font-black text-white">
                 {user?.displayName?.substring(0, 2).toUpperCase() || 'AP'}
@@ -111,11 +114,12 @@ export default function ProfileScreen() {
             )}
           </View>
           <TouchableOpacity 
-            onPress={() => setPhotoModalVisible(true)}
-            className="absolute bottom-0 right-0 bg-white dark:bg-slate-700 w-7 h-7 rounded-full justify-center items-center border border-slate-200 dark:border-slate-600 shadow-sm active:opacity-75"
+            onPress={handlePickGalleryPhoto}
+            disabled={photoUploading}
+            className="absolute bottom-0 right-0 bg-white dark:bg-slate-700 w-8 h-8 rounded-full justify-center items-center border border-slate-200 dark:border-slate-600 shadow-sm active:opacity-75"
             activeOpacity={0.7}
           >
-            <Ionicons name="camera" size={13} color="#0284C7" />
+            <Ionicons name="camera" size={15} color="#0284C7" />
           </TouchableOpacity>
         </View>
 
@@ -352,62 +356,9 @@ export default function ProfileScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
-      {/* PHOTO UPLOAD & CROP AVATAR MODAL */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={photoModalVisible}
-        onRequestClose={() => setPhotoModalVisible(false)}
-      >
-        <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-white dark:bg-slate-800 rounded-t-3xl p-5 pb-8">
-            <View className="flex-row justify-between items-center pb-3 mb-3 border-b border-slate-100 dark:border-slate-700">
-              <Text className="text-base font-black text-slate-900 dark:text-slate-50">Set & Crop Plant Logo</Text>
-              <TouchableOpacity onPress={() => setPhotoModalVisible(false)} className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 justify-center items-center">
-                <Ionicons name="close" size={18} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            <Text className="text-xs text-slate-500 mb-3">
-              Choose an official avatar preset or upload a custom logo:
-            </Text>
-
-            {/* Avatar Presets Grid */}
-            <View className="flex-row flex-wrap gap-2.5 mb-4">
-              {avatarOptions.map((av) => (
-                <TouchableOpacity
-                  key={av.id}
-                  onPress={() => setSelectedAvatar(av.id)}
-                  className={`p-3 rounded-2xl border items-center flex-1 min-w-[45%] ${
-                    selectedAvatar === av.id ? 'bg-sky-50 dark:bg-sky-950/40 border-sky-500' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700'
-                  }`}
-                  activeOpacity={0.7}
-                >
-                  <View className="w-10 h-10 rounded-xl justify-center items-center mb-1" style={{ backgroundColor: av.bg }}>
-                    <Ionicons name={av.icon as any} size={20} color={av.color} />
-                  </View>
-                  <Text className="text-3xs font-bold text-slate-800 dark:text-slate-200 text-center">{av.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View className="flex-row gap-2.5">
-              <TouchableOpacity
-                onPress={() => {
-                  setSelectedAvatar('1');
-                  handleCropAndSavePhoto();
-                }}
-                className="flex-1 bg-sky-600 py-3 rounded-xl items-center"
-              >
-                <Text className="text-xs font-black text-white">Crop & Apply Logo</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </ScrollView>
   );
 }
+
 
 

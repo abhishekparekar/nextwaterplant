@@ -5,10 +5,11 @@ import {
   ScrollView, 
   TouchableOpacity, 
   Modal, 
-  Alert,
+  Alert, 
   KeyboardAvoidingView, 
-  Platform,
-  Linking
+  Platform, 
+  Linking,
+  Image 
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
@@ -16,16 +17,33 @@ import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { ROUTES } from '@/constants/routes';
 import { Ionicons } from '@expo/vector-icons';
+import { pickImageFromGallery } from '@/utils/imagePicker';
 
 export default function HelperProfileScreen() {
   const { user, signOut, updateProfile, loading } = useAuthStore();
   const router = useRouter();
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [displayName, setDisplayName] = useState(user?.displayName || 'Ramesh Driver');
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '9822001122');
   const [address, setAddress] = useState(user?.address || 'Near Plant MIDC');
   const [saving, setSaving] = useState(false);
+
+  const handlePickGalleryPhoto = async () => {
+    try {
+      setPhotoUploading(true);
+      const uri = await pickImageFromGallery();
+      if (uri) {
+        await updateProfile({ photoURL: uri });
+        Alert.alert('Profile Photo Updated', 'Your staff photo has been updated from gallery!');
+      }
+    } catch (e: any) {
+      Alert.alert('Upload Error', e.message || 'Failed to update photo.');
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
 
   const handleSaveProfile = async () => {
     if (!displayName || !phoneNumber) {
@@ -66,10 +84,25 @@ export default function HelperProfileScreen() {
     >
       {/* 1. Helper Profile Card */}
       <View className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 items-center shadow-2xs mb-3">
-        <View className="w-18 h-18 rounded-full bg-teal-600 justify-center items-center mb-2 shadow-sm">
-          <Text className="text-2xl font-black text-white">
-            {user?.displayName?.substring(0, 2).toUpperCase() || 'RD'}
-          </Text>
+        {/* Avatar with Camera Button */}
+        <View className="relative mb-2">
+          <View className="w-20 h-20 rounded-full bg-teal-600 justify-center items-center shadow-sm overflow-hidden border-2 border-teal-200 dark:border-teal-800">
+            {user?.photoURL ? (
+              <Image source={{ uri: user.photoURL }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            ) : (
+              <Text className="text-2xl font-black text-white">
+                {user?.displayName?.substring(0, 2).toUpperCase() || 'RD'}
+              </Text>
+            )}
+          </View>
+          <TouchableOpacity 
+            onPress={handlePickGalleryPhoto}
+            disabled={photoUploading}
+            className="absolute bottom-0 right-0 bg-white dark:bg-slate-700 w-8 h-8 rounded-full justify-center items-center border border-slate-200 dark:border-slate-600 shadow-sm active:opacity-75"
+            activeOpacity={0.7}
+          >
+            <Ionicons name="camera" size={15} color="#0D9488" />
+          </TouchableOpacity>
         </View>
 
         <Text className="text-base font-black text-slate-900 dark:text-slate-50 text-center">
