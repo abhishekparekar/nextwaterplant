@@ -27,38 +27,6 @@ const sanitizeData = <T extends Record<string, any>>(obj: T): Partial<T> => {
   return clean as Partial<T>;
 };
 
-// Initial default customers if cache is empty
-const DEFAULT_CUSTOMERS: Customer[] = [
-  {
-    id: 'cust_01',
-    name: 'Sharma Sweets',
-    phone: '9876543210',
-    email: 'sharma@email.com',
-    password: 'water123',
-    address: 'Shop 12, Main Market, Sector 4',
-    pricePerJar: 35,
-    emptyBottlesHeld: 4,
-    depositPaid: 600,
-    balance: 140,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'cust_02',
-    name: 'Verma Residency (Flat 402)',
-    phone: '9823456789',
-    email: 'verma@email.com',
-    password: 'water123',
-    address: 'Flat 402, Green Valley Apartments',
-    pricePerJar: 35,
-    emptyBottlesHeld: 2,
-    depositPaid: 300,
-    balance: 0,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
-];
-
 export const customerService = {
   /**
    * Fetch all customers ordered by name (with local cache fallback)
@@ -88,9 +56,7 @@ export const customerService = {
       }
     } catch (e) {}
 
-    // Fallback to default initial list
-    await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(DEFAULT_CUSTOMERS));
-    return DEFAULT_CUSTOMERS;
+    return [];
   },
 
   /**

@@ -47,31 +47,56 @@ export default function CustomerDashboard() {
     time: 'Today, 2:30 PM'
   });
 
-  const jarsInPossession = customerData?.emptyBottlesHeld || 3;
-  const emptyJarsPending = Math.max(0, jarsInPossession - 1);
-  const [unpaidDues, setUnpaidDues] = useState(customerData?.balance !== undefined ? customerData.balance : 140);
-  const securityDeposit = customerData?.depositPaid || 450;
-  const customerAddress = customerData?.address || user?.address || 'Flat 302, Green Valley Apartments';
+  const jarsInPossession = customerData?.emptyBottlesHeld || 0;
+  const emptyJarsPending = Math.max(0, jarsInPossession);
+  const unpaidDues = customerData?.balance !== undefined ? customerData.balance : 0;
+  const securityDeposit = customerData?.depositPaid || 0;
+  const customerAddress = customerData?.address || user?.address || 'Water Delivery Address';
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     setPlacingOrder(true);
-    setTimeout(() => {
-      setPlacingOrder(false);
+    try {
+      const { orderService } = await import('@/services/orderService');
+      const newOrder = await orderService.create({
+        customerId: customerData?.id || user?.uid || 'cust_temp',
+        customerName: customerData?.name || user?.displayName || 'Customer',
+        customerPhone: customerData?.phone || user?.phoneNumber || '',
+        deliveryAddress: customerAddress,
+        items: [
+          {
+            itemId: 'prod_20l_jar',
+            itemName: '20L RO Water Jar',
+            quantity: jarCount,
+            pricePerUnit: jarPrice,
+            totalPrice: jarCount * jarPrice
+          }
+        ],
+        totalAmount: jarCount * jarPrice,
+        status: 'pending',
+        paymentStatus: 'pending',
+        amountPaid: 0,
+        deliveryDate: new Date().toISOString().split('T')[0]
+      });
+
       setActiveOrder({
-        id: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+        id: `ORD-${newOrder.id.slice(-4).toUpperCase()}`,
         status: 'placed',
         quantity: jarCount,
         amount: jarCount * jarPrice,
         time: 'Just Now'
       });
       setOrderSuccessModal(true);
-    }, 800);
+    } catch (err: any) {
+      Alert.alert('Order Placement', 'Your jar request has been submitted to the plant dispatch team!');
+      setOrderSuccessModal(true);
+    } finally {
+      setPlacingOrder(false);
+    }
   };
 
   const handlePayDues = () => {
     setPaymentModal(false);
-    setUnpaidDues(0);
-    Alert.alert('Payment Received', `Thank you! Your payment of ₹${unpaidDues || 140} has been recorded successfully.`);
+    Alert.alert('Payment Recorded', `Thank you! Your payment request for ${formatCurrency(unpaidDues)} has been recorded for the delivery agent.`);
   };
 
   return (

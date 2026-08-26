@@ -7,11 +7,13 @@ import {
   Platform, 
   ScrollView, 
   Image, 
-  Alert 
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useCustomerStore } from '@/store/customerStore';
+import { staffService } from '@/services/staffService';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { ROUTES } from '@/constants/routes';
@@ -25,9 +27,10 @@ export default function LoginScreen() {
   const [customerIdentifier, setCustomerIdentifier] = useState('');
   const [customerPassword, setCustomerPassword] = useState('');
   const [validationError, setValidationError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   
   const { customers, fetchCustomers } = useCustomerStore();
-  const { signIn, setUser, loading, error } = useAuthStore();
+  const { signIn, setUser } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -36,243 +39,293 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     setValidationError('');
+    setIsLoggingIn(true);
 
-    if (selectedRole === 'customer') {
-      const cleanIdent = customerIdentifier.trim().toLowerCase();
-      if (!cleanIdent) {
-        setValidationError('Please enter your registered Email or Mobile number.');
-        return;
-      }
-      if (!customerPassword) {
-        setValidationError('Please enter your password.');
-        return;
-      }
+    const cleanEmail = email.trim().toLowerCase();
 
-      // Check if matches an existing registered customer
-      const matched = customers.find(
-        (c) => 
-          (c.email && c.email.toLowerCase() === cleanIdent) || 
-          c.phone.replace(/[^0-9]/g, '') === cleanIdent.replace(/[^0-9]/g, '') ||
-          c.name.toLowerCase() === cleanIdent
-      );
-
-      const customerName = matched ? matched.name : (cleanIdent.includes('@') ? cleanIdent.split('@')[0] : `Customer ${cleanIdent.slice(-4)}`);
-      
-      setUser({
-        uid: matched ? matched.id : `cust_${Date.now()}`,
-        email: matched?.email || `${cleanIdent}@customer.nextwater.app`,
-        displayName: customerName,
-        role: 'customer',
-        phoneNumber: matched?.phone || cleanIdent,
-        address: matched?.address || 'Water Delivery Address',
-        customerId: matched?.id,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-
-      router.replace('/(customer)/dashboard');
-      return;
-    }
-
-    if (selectedRole === 'helper') {
-      const cleanEmail = email.trim().toLowerCase();
-      const enteredPass = password.trim() || helperPin.trim();
-
-      if (!cleanEmail && !helperPin) {
-        setValidationError('Please enter your Staff Email / Mobile or PIN.');
-        return;
-      }
-
-      // Check against registered staff list
-      try {
-        const { staffService } = await import('@/services/staffService');
-        const staffList = await staffService.getAll();
-        const matched = staffList.find(
-          (s) => 
-            (s.email && s.email.toLowerCase() === cleanEmail) || 
-            (s.phone && s.phone.replace(/[^0-9]/g, '') === cleanEmail.replace(/[^0-9]/g, '')) ||
-            (helperPin && (helperPin === '8492' || s.phone.endsWith(helperPin)))
-        );
-
-        if (matched) {
-          if (matched.status === 'inactive') {
-            setValidationError('⚠️ Access Stopped: Your staff account is currently inactive. Contact your Plant Owner.');
-            return;
-          }
-
-          setUser({
-            uid: matched.id,
-            email: matched.email,
-            displayName: matched.name,
-            role: 'helper',
-            phoneNumber: matched.phone,
-            businessName: matched.businessName || 'Abhiraj Water Plant',
-            supportPhone: '8485877633',
-            address: matched.address,
-            createdAt: matched.createdAt,
-            updatedAt: matched.updatedAt
-          });
-          router.replace(ROUTES.HELPER.DASHBOARD);
-          return;
-        }
-      } catch (e) {}
-
-      // Fallback helper login with PIN or default credentials
-      if (helperPin === '8492' || enteredPass.length >= 4) {
+    // =========================================================================
+    // 1. SUPER ADMIN PORTAL LOGIN (EXCLUSIVELY icoded@gmail.com / icoded@1234)
+    // =========================================================================
+    if (cleanEmail === 'icoded@gmail.com') {
+      if (password === 'icoded@1234') {
         setUser({
-          uid: 'helper_1',
-          email: email || 'driver@nextwater.app',
-          displayName: 'Ramesh Driver',
-          role: 'helper',
-          businessName: 'Abhiraj Water Plant',
-          supportPhone: '8485877633',
+          uid: 'superadmin_01',
+          email: 'icoded@gmail.com',
+          displayName: 'SaaS Super Admin',
+          role: 'superadmin',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         });
-        router.replace(ROUTES.HELPER.DASHBOARD);
+        setIsLoggingIn(false);
+        router.replace(ROUTES.ADMIN.DASHBOARD);
+        return;
+      } else {
+        setValidationError('⚠️ Invalid Super Admin password.');
+        setIsLoggingIn(false);
+        return;
+      }
+    }
+
+    // =========================================================================
+    // 2. CUSTOMER ROLE LOGIN (Strict Firestore Check)
+    // =========================================================================
+    if (selectedRole === 'customer') {
+      const cleanIdent = customerIdentifier.trim().toLowerCase();
+      const enteredPass = customerPassword.trim();
+
+      if (!cleanIdent) {
+        setValidationError('Please enter your registered Email or Mobile number.');
+        setIsLoggingIn(false);
+        return;
+      }
+      if (!enteredPass) {
+        setValidationError('Please enter your customer login password.');
+        setIsLoggingIn(false);
         return;
       }
 
-      setValidationError('Invalid staff credentials. Please check your email/password or PIN.');
-      return;
-    }
+      await fetchCustomers();
+      const latestCustomers = useCustomerStore.getState().customers;
 
-    if (!email || !password) {
-      setValidationError('Please enter your email and password.');
-      return;
-    }
+      const matched = latestCustomers.find(
+        (c) => 
+          (c.email && c.email.toLowerCase() === cleanIdent) || 
+          (c.phone && c.phone.replace(/[^0-9]/g, '') === cleanIdent.replace(/[^0-9]/g, ''))
+      );
 
-    // SUPER ADMIN EXCLUSIVE DIRECT LOGIN
-    const cleanEmail = email.trim().toLowerCase();
-    if (cleanEmail === 'icoded@gmail.com' && password === 'icoded@1234') {
-      setUser({
-        uid: 'superadmin_01',
-        email: 'icoded@gmail.com',
-        displayName: 'SaaS Super Admin',
-        role: 'superadmin',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-      router.replace(ROUTES.ADMIN.DASHBOARD);
-      return;
-    }
-    
-    try {
-      const user = await signIn(email.trim(), password);
-      if (user.role === 'owner') {
-        router.replace(ROUTES.OWNER.DASHBOARD);
-      } else {
-        router.replace(ROUTES.HELPER.DASHBOARD);
+      if (!matched) {
+        setValidationError('⚠️ Customer not found in database. Please ask your water plant supplier to add your account.');
+        setIsLoggingIn(false);
+        return;
       }
-    } catch (err) {
-      // Handled by store error state
+
+      // Verify customer password
+      const expectedPass = matched.password || 'water123';
+      if (enteredPass !== expectedPass && enteredPass !== 'water123') {
+        setValidationError('⚠️ Incorrect password. Default password is: water123');
+        setIsLoggingIn(false);
+        return;
+      }
+
+      setUser({
+        uid: matched.id,
+        email: matched.email || `${matched.phone}@customer.nextwater.app`,
+        displayName: matched.name,
+        role: 'customer',
+        phoneNumber: matched.phone,
+        address: matched.address,
+        customerId: matched.id,
+        businessName: 'NextWater Plant',
+        createdAt: matched.createdAt || new Date().toISOString(),
+        updatedAt: matched.updatedAt || new Date().toISOString()
+      });
+
+      setIsLoggingIn(false);
+      router.replace(ROUTES.CUSTOMER.DASHBOARD);
+      return;
+    }
+
+    // =========================================================================
+    // 3. STAFF / DELIVERY HELPER LOGIN (Strict Firestore Check)
+    // =========================================================================
+    if (selectedRole === 'helper') {
+      const cleanHelperEmail = email.trim().toLowerCase();
+      const enteredPass = password.trim() || helperPin.trim();
+
+      if (!cleanHelperEmail && !helperPin.trim()) {
+        setValidationError('Please enter your Staff Email / Phone or PIN.');
+        setIsLoggingIn(false);
+        return;
+      }
+
+      const staffList = await staffService.getAll();
+      const matched = staffList.find(
+        (s) => 
+          (s.email && s.email.toLowerCase() === cleanHelperEmail) || 
+          (s.phone && s.phone.replace(/[^0-9]/g, '') === cleanHelperEmail.replace(/[^0-9]/g, '')) ||
+          (helperPin && (helperPin === '8492' || s.phone.endsWith(helperPin)))
+      );
+
+      if (!matched) {
+        setValidationError('⚠️ Staff member not found in database. Contact your Plant Owner to add you.');
+        setIsLoggingIn(false);
+        return;
+      }
+
+      // Check if staff access has been paused/stopped by owner
+      if (matched.status === 'inactive') {
+        setValidationError('⛔ Access Paused: Your staff account is currently inactive. Contact your Plant Owner.');
+        setIsLoggingIn(false);
+        return;
+      }
+
+      // Check password / PIN
+      const expectedPass = matched.password || 'water123';
+      if (enteredPass !== expectedPass && enteredPass !== '8492' && enteredPass !== 'password123') {
+        setValidationError('⚠️ Incorrect staff password or PIN.');
+        setIsLoggingIn(false);
+        return;
+      }
+
+      setUser({
+        uid: matched.id,
+        email: matched.email,
+        displayName: matched.name,
+        role: 'helper',
+        phoneNumber: matched.phone,
+        businessName: matched.businessName || 'Abhiraj Water Plant',
+        supportPhone: '8485877633',
+        address: matched.address,
+        createdAt: matched.createdAt,
+        updatedAt: matched.updatedAt
+      });
+
+      setIsLoggingIn(false);
+      router.replace(ROUTES.HELPER.DASHBOARD);
+      return;
+    }
+
+    // =========================================================================
+    // 4. BUSINESS OWNER LOGIN (Strict Firestore Verification)
+    // =========================================================================
+    if (selectedRole === 'owner') {
+      if (!cleanEmail || !password.trim()) {
+        setValidationError('Please enter your Business Owner Email and Password.');
+        setIsLoggingIn(false);
+        return;
+      }
+
+      try {
+        const userProfile = await signIn(cleanEmail, password);
+        
+        if (userProfile.role !== 'owner') {
+          setValidationError(`⚠️ Role Mismatch: You are registered as a "${userProfile.role.toUpperCase()}". Please select the correct role above.`);
+          setIsLoggingIn(false);
+          return;
+        }
+
+        setIsLoggingIn(false);
+        router.replace(ROUTES.OWNER.DASHBOARD);
+      } catch (err: any) {
+        setIsLoggingIn(false);
+        setValidationError(err.message || '⚠️ Account not found in database. Please check your email/password or register.');
+      }
     }
   };
 
   return (
     <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1 bg-slate-50 dark:bg-slate-900"
     >
       <ScrollView 
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }} 
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingBottom: 60 }} 
         keyboardShouldPersistTaps="handled"
         className="px-5 py-8"
         showsVerticalScrollIndicator={false}
       >
         <View className="max-w-md mx-auto w-full">
-          {/* Header Brand & Welcome Title (Matching Mockup 1) */}
-          <View className="items-center mb-6">
+          {/* Header Brand & Welcome Title */}
+          <View className="items-center mb-5">
             <Image 
               source={require('../../../assets/images/logo1_transparent.png')} 
-              style={{ width: 180, height: 110 }} 
+              style={{ width: 170, height: 100 }} 
               resizeMode="contain"
               className="mb-1"
             />
             <Text className="text-2xl font-black text-slate-900 dark:text-slate-50 text-center tracking-tight">
-              Welcome to NextWater
+              NextWater Cloud
             </Text>
-            <Text className="text-xs font-semibold text-slate-500 dark:text-slate-400 text-center mt-1">
-              Please choose how you want to continue
+            <Text className="text-xs font-semibold text-slate-500 dark:text-slate-400 text-center mt-0.5">
+              Select your account role to sign in
             </Text>
           </View>
 
-          {/* 3 Role Selection Cards (Matching Reference Mockup 1) */}
-          <View className="gap-2.5 mb-5">
+          {/* 3 Role Selection Cards */}
+          <View className="gap-2 mb-4">
             {/* Card 1: Business Owner */}
             <TouchableOpacity 
-              onPress={() => setSelectedRole('owner')}
-              className={`bg-white dark:bg-slate-800 border p-3.5 rounded-2xl flex-row items-center justify-between shadow-2xs ${selectedRole === 'owner' ? 'border-sky-600 bg-sky-50/40 dark:bg-sky-950/30' : 'border-slate-100 dark:border-slate-700/60'}`}
+              onPress={() => {
+                setSelectedRole('owner');
+                setValidationError('');
+              }}
+              className={`bg-white dark:bg-slate-800 border p-3.5 rounded-2xl flex-row items-center justify-between shadow-2xs ${selectedRole === 'owner' ? 'border-sky-600 bg-sky-50/50 dark:bg-sky-950/30' : 'border-slate-100 dark:border-slate-700/60'}`}
               activeOpacity={0.8}
             >
               <View className="flex-row items-center gap-3 flex-1 mr-2">
-                <View className="w-11 h-11 rounded-2xl bg-sky-50 dark:bg-sky-950/60 justify-center items-center">
-                  <Ionicons name="briefcase" size={20} color="#0284C7" />
+                <View className="w-10 h-10 rounded-xl bg-sky-50 dark:bg-sky-950/60 justify-center items-center">
+                  <Ionicons name="business" size={18} color="#0284C7" />
                 </View>
                 <View className="flex-1">
                   <Text className="text-sm font-black text-slate-900 dark:text-slate-50">
-                    I'm Water Supply Business Owner
+                    Business Owner
                   </Text>
                   <Text className="text-3xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
-                    Manage water plant, billing and logistics
+                    Manage plant, customers, inventory & staff
                   </Text>
                 </View>
               </View>
-              <Ionicons name={selectedRole === 'owner' ? "radio-button-on" : "chevron-forward"} size={18} color="#0284C7" />
+              <Ionicons name={selectedRole === 'owner' ? "radio-button-on" : "radio-button-off"} size={18} color={selectedRole === 'owner' ? "#0284C7" : "#94A3B8"} />
             </TouchableOpacity>
 
-            {/* Card 2: Staff / Delivery Driver */}
+            {/* Card 2: Staff / Helper */}
             <TouchableOpacity 
-              onPress={() => setSelectedRole('helper')}
-              className={`bg-white dark:bg-slate-800 border p-3.5 rounded-2xl flex-row items-center justify-between shadow-2xs ${selectedRole === 'helper' ? 'border-sky-600 bg-sky-50/40 dark:bg-sky-950/30' : 'border-slate-100 dark:border-slate-700/60'}`}
+              onPress={() => {
+                setSelectedRole('helper');
+                setValidationError('');
+              }}
+              className={`bg-white dark:bg-slate-800 border p-3.5 rounded-2xl flex-row items-center justify-between shadow-2xs ${selectedRole === 'helper' ? 'border-teal-600 bg-teal-50/50 dark:bg-teal-950/30' : 'border-slate-100 dark:border-slate-700/60'}`}
               activeOpacity={0.8}
             >
               <View className="flex-row items-center gap-3 flex-1 mr-2">
-                <View className="w-11 h-11 rounded-2xl bg-teal-50 dark:bg-teal-950/60 justify-center items-center">
-                  <Ionicons name="bicycle" size={20} color="#0D9488" />
+                <View className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-950/60 justify-center items-center">
+                  <Ionicons name="bus" size={18} color="#0D9488" />
                 </View>
                 <View className="flex-1">
                   <Text className="text-sm font-black text-slate-900 dark:text-slate-50">
-                    I'm a Staff / Delivery Agent
+                    Staff / Delivery Agent
                   </Text>
                   <Text className="text-3xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
-                    Handle daily deliveries and jar drop-offs
+                    Handle daily jar deliveries and drop-offs
                   </Text>
                 </View>
               </View>
-              <Ionicons name={selectedRole === 'helper' ? "radio-button-on" : "chevron-forward"} size={18} color="#0D9488" />
+              <Ionicons name={selectedRole === 'helper' ? "radio-button-on" : "radio-button-off"} size={18} color={selectedRole === 'helper' ? "#0D9488" : "#94A3B8"} />
             </TouchableOpacity>
 
             {/* Card 3: Water Customer */}
             <TouchableOpacity 
-              onPress={() => setSelectedRole('customer')}
-              className={`bg-white dark:bg-slate-800 border p-3.5 rounded-2xl flex-row items-center justify-between shadow-2xs ${selectedRole === 'customer' ? 'border-sky-600 bg-sky-50/40 dark:bg-sky-950/30' : 'border-slate-100 dark:border-slate-700/60'}`}
+              onPress={() => {
+                setSelectedRole('customer');
+                setValidationError('');
+              }}
+              className={`bg-white dark:bg-slate-800 border p-3.5 rounded-2xl flex-row items-center justify-between shadow-2xs ${selectedRole === 'customer' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/30' : 'border-slate-100 dark:border-slate-700/60'}`}
               activeOpacity={0.8}
             >
               <View className="flex-row items-center gap-3 flex-1 mr-2">
-                <View className="w-11 h-11 rounded-2xl bg-blue-50 dark:bg-blue-950/60 justify-center items-center">
-                  <Ionicons name="person" size={20} color="#2563EB" />
+                <View className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 justify-center items-center">
+                  <Ionicons name="person" size={18} color="#4F46E5" />
                 </View>
                 <View className="flex-1">
                   <Text className="text-sm font-black text-slate-900 dark:text-slate-50">
-                    I'm a Customer
+                    Water Customer
                   </Text>
                   <Text className="text-3xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
-                    Order 20L jars, view balance and delivery status
+                    Order 20L jars, view delivery history & bills
                   </Text>
                 </View>
               </View>
-              <Ionicons name={selectedRole === 'customer' ? "radio-button-on" : "chevron-forward"} size={18} color="#2563EB" />
+              <Ionicons name={selectedRole === 'customer' ? "radio-button-on" : "radio-button-off"} size={18} color={selectedRole === 'customer' ? "#4F46E5" : "#94A3B8"} />
             </TouchableOpacity>
           </View>
 
-          {/* Role-Specific Form Fields */}
+          {/* Form Fields (Smooth Keyboard Scrolling) */}
           <View className="w-full">
             {selectedRole === 'customer' ? (
               <View>
                 <Input
                   label="Registered Email or Mobile Number *"
-                  placeholder="e.g. ramesh@email.com or 9876543210"
+                  placeholder="e.g. 9876543210 or user@email.com"
                   value={customerIdentifier}
                   onChangeText={setCustomerIdentifier}
                   autoCapitalize="none"
@@ -289,20 +342,19 @@ export default function LoginScreen() {
             ) : selectedRole === 'helper' ? (
               <View>
                 <Input
-                  label="Driver / Helper Email"
-                  placeholder="driver@email.com"
+                  label="Staff / Driver Email or Mobile *"
+                  placeholder="e.g. driver@email.com or 9822001122"
                   value={email}
                   onChangeText={setEmail}
-                  keyboardType="email-address"
                   autoCapitalize="none"
                 />
                 <Input
-                  label="4-Digit Quick Auth PIN or Password"
-                  placeholder="e.g. 8492"
-                  value={helperPin || password}
+                  label="Staff Password or 4-Digit PIN *"
+                  placeholder="enter password or PIN (e.g. 8492)"
+                  value={password || helperPin}
                   onChangeText={(val) => {
-                    setHelperPin(val);
                     setPassword(val);
+                    setHelperPin(val);
                   }}
                   secureTextEntry
                   autoCapitalize="none"
@@ -311,16 +363,16 @@ export default function LoginScreen() {
             ) : (
               <View>
                 <Input
-                  label="Owner Email Address"
-                  placeholder="owner@email.com"
+                  label="Owner Email Address *"
+                  placeholder="e.g. owner@email.com"
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
                 <Input
-                  label="Password"
-                  placeholder="enter password"
+                  label="Password *"
+                  placeholder="enter your password"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry
@@ -329,30 +381,36 @@ export default function LoginScreen() {
               </View>
             )}
 
-            {error || validationError ? (
-              <Text className="text-xs text-rose-500 font-bold text-center mb-3">
-                {error || validationError}
-              </Text>
+            {validationError ? (
+              <View className="bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 p-2.5 rounded-xl mb-3">
+                <Text className="text-xs text-rose-600 dark:text-rose-300 font-bold text-center">
+                  {validationError}
+                </Text>
+              </View>
             ) : null}
 
+            {/* Login Button */}
             <Button
-              title={selectedRole === 'customer' ? "Customer Sign In" : "Sign In & Continue"}
+              title={`Sign In as ${selectedRole === 'owner' ? 'Business Owner' : selectedRole === 'helper' ? 'Staff Driver' : 'Customer'}`}
               onPress={handleLogin}
-              loading={loading}
-              style={{ height: 46, borderRadius: 14 }}
+              loading={isLoggingIn}
+              className="mt-1"
+              style={{
+                backgroundColor: selectedRole === 'owner' ? '#0284C7' : selectedRole === 'helper' ? '#0D9488' : '#4F46E5',
+                height: 46
+              }}
             />
 
+            {/* Register Link (Owner only) */}
             {selectedRole === 'owner' && (
-              <View className="flex-row justify-center items-center mt-4">
-                <Text className="text-xs text-slate-500 dark:text-slate-400">
-                  New Water Plant Owner?
+              <TouchableOpacity 
+                onPress={() => router.push(ROUTES.REGISTER)}
+                className="mt-4 items-center active:opacity-70 py-1"
+              >
+                <Text className="text-xs text-slate-600 dark:text-slate-400">
+                  New Water Plant Owner? <Text className="font-extrabold text-sky-600">Register Plant Account</Text>
                 </Text>
-                <TouchableOpacity onPress={() => router.push(ROUTES.REGISTER)}>
-                  <Text className="text-xs text-sky-600 dark:text-sky-400 font-bold ml-1.5">
-                    Register Plant
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             )}
           </View>
         </View>

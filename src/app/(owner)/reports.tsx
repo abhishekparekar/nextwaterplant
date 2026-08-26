@@ -31,14 +31,14 @@ export default function ReportsScreen() {
     return <Loader />;
   }
 
-  const revenue = data?.totalRevenue || 124850;
-  const netProfit = revenue - expensesTotal;
-  const totalDeliveries = (data?.completedDeliveries || 28) + (data?.pendingDeliveries || 4);
+  const revenue = data?.totalRevenue || 0;
+  const netProfit = Math.max(0, revenue - expensesTotal);
+  const totalDeliveries = (data?.completedDeliveries || 0) + (data?.pendingDeliveries || 0);
   const fulfillmentRate = totalDeliveries > 0 
-    ? Math.round(((data?.completedDeliveries || 28) / totalDeliveries) * 100) 
-    : 92;
+    ? Math.round(((data?.completedDeliveries || 0) / totalDeliveries) * 100) 
+    : (data?.completedDeliveries ? 100 : 0);
 
-  const profitMargin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 85;
+  const profitMargin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
 
   return (
     <ScrollView 

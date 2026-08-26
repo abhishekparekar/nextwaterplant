@@ -5,11 +5,12 @@ import {
   FlatList, 
   TouchableOpacity, 
   Modal, 
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert
+  ScrollView, 
+  KeyboardAvoidingView, 
+  Platform, 
+  Alert 
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -34,24 +35,46 @@ const CATEGORY_PRESETS = [
   { label: '📦 Jars Purchase', value: 'New Jar Purchase' },
 ];
 
-export default function ExpensesScreen() {
-  const [expenses, setExpenses] = useState<Expense[]>([
-    { id: '1', category: 'Vehicle Fuel', amount: 800.00, description: 'Delivery truck diesel refuel', date: new Date().toISOString() },
-    { id: '2', category: 'RO Filters & Chemical', amount: 2400.00, description: 'Carbon filter replacements & sanitizer', date: new Date(Date.now() - 86400000).toISOString() },
-    { id: '3', category: 'Vehicle Maintenance', amount: 450.00, description: 'Tire puncture & oil change', date: new Date(Date.now() - 172800000).toISOString() }
-  ]);
+const EXPENSES_CACHE_KEY = '@nextwater_expenses_cache';
 
+export default function ExpensesScreen() {
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [category, setCategory] = useState(CATEGORY_PRESETS[0].value);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const { getTenantCollection } = await import('@/services/firebase');
+        const { getDocs, query, orderBy } = await import('firebase/firestore');
+        const q = query(getTenantCollection('expenses'), orderBy('date', 'desc'));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const list: Expense[] = [];
+          snap.forEach(d => list.push({ id: d.id, ...d.data() } as Expense));
+          setExpenses(list);
+          await AsyncStorage.setItem(EXPENSES_CACHE_KEY, JSON.stringify(list));
+          return;
+        }
+      } catch (e) {}
+
+      try {
+        const cached = await AsyncStorage.getItem(EXPENSES_CACHE_KEY);
+        if (cached) {
+          setExpenses(JSON.parse(cached));
+        }
+      } catch (e) {}
+    })();
+  }, []);
+
   const totalExpense = useMemo(() => {
     return expenses.reduce((sum, item) => sum + item.amount, 0);
   }, [expenses]);
 
-  const handleAddExpense = () => {
+  const handleAddExpense = async () => {
     const val = parseFloat(amount);
     if (!category || isNaN(val) || val <= 0) {
       Alert.alert('Validation Error', 'Please enter a valid expense amount.');
@@ -59,20 +82,32 @@ export default function ExpensesScreen() {
     }
 
     setSubmitting(true);
-    const newExp: Expense = {
-      id: Date.now().toString(),
-      category: category.trim(),
+    const newEntry: Expense = {
+      id: `exp_${Date.now()}`,
+      category,
       amount: val,
-      description: description.trim(),
+      description: description.trim() || category,
       date: new Date().toISOString()
     };
 
-    setExpenses([newExp, ...expenses]);
-    setModalVisible(false);
+    try {
+      const { getTenantCollection } = await import('@/services/firebase');
+      const { addDoc } = await import('firebase/firestore');
+      const docRef = await addDoc(getTenantCollection('expenses'), newEntry);
+      newEntry.id = docRef.id;
+    } catch (e) {}
+
+    const updated = [newEntry, ...expenses];
+    setExpenses(updated);
+    try {
+      await AsyncStorage.setItem(EXPENSES_CACHE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+
+    setSubmitting(false);
     setAmount('');
     setDescription('');
-    setSubmitting(false);
-    Alert.alert('Success', 'Expense record logged successfully.');
+    setModalVisible(false);
+    Alert.alert('Success', `Expense of ${formatCurrency(val)} recorded.`);
   };
 
   return (

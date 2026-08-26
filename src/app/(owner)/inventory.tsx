@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -7,6 +7,7 @@ import {
   Modal, 
   Alert 
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,28 +21,48 @@ interface InventoryItem {
   reorderLevel: number;
 }
 
-export default function InventoryScreen() {
-  const [stock, setStock] = useState<InventoryItem[]>([
-    { id: '1', name: '20L Filled Water Jars', category: 'jars', quantity: 180, unit: 'jars', reorderLevel: 50 },
-    { id: '2', name: '20L Empty Returned Jars', category: 'jars', quantity: 45, unit: 'jars', reorderLevel: 30 },
-    { id: '3', name: 'Sanitized Bottle Caps', category: 'parts', quantity: 1200, unit: 'caps', reorderLevel: 300 },
-    { id: '4', name: 'Water Dispenser Stands', category: 'accessories', quantity: 24, unit: 'units', reorderLevel: 10 }
-  ]);
+const INVENTORY_CACHE_KEY = '@nextwater_inventory_cache';
 
+const INITIAL_INVENTORY: InventoryItem[] = [
+  { id: '1', name: '20L Filled Water Jars', category: 'jars', quantity: 0, unit: 'jars', reorderLevel: 50 },
+  { id: '2', name: '20L Empty Returned Jars', category: 'jars', quantity: 0, unit: 'jars', reorderLevel: 30 },
+  { id: '3', name: 'Sanitized Bottle Caps', category: 'parts', quantity: 0, unit: 'caps', reorderLevel: 300 },
+  { id: '4', name: 'Water Dispenser Stands', category: 'accessories', quantity: 0, unit: 'units', reorderLevel: 10 }
+];
+
+export default function InventoryScreen() {
+  const [stock, setStock] = useState<InventoryItem[]>(INITIAL_INVENTORY);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [adjustVal, setAdjustVal] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
 
-  const quickAdjust = (id: string, delta: number) => {
-    setStock((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          const newQty = Math.max(0, item.quantity + delta);
-          return { ...item, quantity: newQty };
+  useEffect(() => {
+    (async () => {
+      try {
+        const cached = await AsyncStorage.getItem(INVENTORY_CACHE_KEY);
+        if (cached) {
+          setStock(JSON.parse(cached));
         }
-        return item;
-      })
-    );
+      } catch (e) {}
+    })();
+  }, []);
+
+  const saveStock = async (newStock: InventoryItem[]) => {
+    setStock(newStock);
+    try {
+      await AsyncStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(newStock));
+    } catch (e) {}
+  };
+
+  const quickAdjust = (id: string, delta: number) => {
+    const updated = stock.map((item) => {
+      if (item.id === id) {
+        const newQty = Math.max(0, item.quantity + delta);
+        return { ...item, quantity: newQty };
+      }
+      return item;
+    });
+    saveStock(updated);
   };
 
   const handleAdjustStock = (type: 'add' | 'subtract') => {
@@ -52,15 +73,15 @@ export default function InventoryScreen() {
       return;
     }
 
-    setStock((prev) =>
-      prev.map((item) => {
-        if (item.id === selectedItem.id) {
-          const newQty = type === 'add' ? item.quantity + value : Math.max(0, item.quantity - value);
-          return { ...item, quantity: newQty };
-        }
-        return item;
-      })
-    );
+    const updated = stock.map((item) => {
+      if (item.id === selectedItem.id) {
+        const newQty = type === 'add' ? item.quantity + value : Math.max(0, item.quantity - value);
+        return { ...item, quantity: newQty };
+      }
+      return item;
+    });
+
+    saveStock(updated);
 
     setModalVisible(false);
     setAdjustVal('');

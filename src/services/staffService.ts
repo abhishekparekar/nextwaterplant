@@ -15,66 +15,6 @@ import { StaffMember } from '@/types/staff';
 
 const CACHE_KEY = '@nextwater_staff_cache';
 
-const INITIAL_STAFF: StaffMember[] = [
-  {
-    id: 'staff_1',
-    name: 'Ramesh Driver',
-    phone: '9822001122',
-    email: 'ramesh@driver.com',
-    password: 'password123',
-    role: 'driver',
-    status: 'active',
-    vehicleNumber: 'MH-12-AB-4050 (Tempo)',
-    assignedRoute: 'Sector 4 & Industrial Zone',
-    salaryOrCommission: '₹14,000 / mo',
-    address: 'Near Water Plant, MIDC Phase 1',
-    ownerId: 'owner_1',
-    businessName: 'Abhiraj Water Plant',
-    totalDeliveriesCompleted: 340,
-    todayDeliveries: 18,
-    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'staff_2',
-    name: 'Suresh Patil',
-    phone: '9860334455',
-    email: 'suresh@driver.com',
-    password: 'password123',
-    role: 'helper',
-    status: 'active',
-    vehicleNumber: 'MH-12-CD-8812 (Mini Van)',
-    assignedRoute: 'City Center & Market Yard',
-    salaryOrCommission: '₹12,500 / mo',
-    address: 'Station Road, Pune',
-    ownerId: 'owner_1',
-    businessName: 'Abhiraj Water Plant',
-    totalDeliveriesCompleted: 195,
-    todayDeliveries: 12,
-    createdAt: new Date(Date.now() - 15 * 86400000).toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'staff_3',
-    name: 'Ganesh Shinde',
-    phone: '9423889900',
-    email: 'ganesh@driver.com',
-    password: 'password123',
-    role: 'driver',
-    status: 'inactive',
-    vehicleNumber: 'MH-12-XY-9009 (Pickup)',
-    assignedRoute: 'Highway Hotels & Cafes',
-    salaryOrCommission: '₹5 / Jar Delivered',
-    address: 'Bypass Chowk',
-    ownerId: 'owner_1',
-    businessName: 'Abhiraj Water Plant',
-    totalDeliveriesCompleted: 80,
-    todayDeliveries: 0,
-    createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
-];
-
 const sanitizeData = (data: any): any => {
   const sanitized: any = {};
   Object.keys(data).forEach((key) => {
@@ -88,9 +28,6 @@ const sanitizeData = (data: any): any => {
 export const staffService = {
   async getAll(): Promise<StaffMember[]> {
     try {
-      const cached = await AsyncStorage.getItem(CACHE_KEY);
-      let localStaff = cached ? JSON.parse(cached) : INITIAL_STAFF;
-
       try {
         const q = query(collection(db, 'staff'), orderBy('createdAt', 'desc'));
         const snapshot = await getDocs(q);
@@ -122,13 +59,17 @@ export const staffService = {
           return remoteStaff;
         }
       } catch (cloudErr) {
-        console.warn('Using local staff store cache:', cloudErr);
+        console.warn('Firestore fetch error, checking local cache:', cloudErr);
       }
 
-      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(localStaff));
-      return localStaff;
+      const cached = await AsyncStorage.getItem(CACHE_KEY);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+
+      return [];
     } catch (e) {
-      return INITIAL_STAFF;
+      return [];
     }
   },
 
