@@ -40,26 +40,32 @@ export default function OrdersScreen() {
   }, [fetchOrders, fetchStaff]);
 
   const filteredOrders = useMemo(() => {
+    if (!orders || !Array.isArray(orders)) return [];
     return orders.filter((o) => {
+      if (!o) return false;
       const matchesTab = activeTab === 'all' || o.status === activeTab;
-      const matchesQuery = !searchQuery.trim() || 
-        o.customerName.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
-        o.id.toLowerCase().includes(searchQuery.toLowerCase().trim());
+      const cName = (o.customerName || '').toLowerCase();
+      const oId = (o.id || '').toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
+      const matchesQuery = !q || cName.includes(q) || oId.includes(q);
       return matchesTab && matchesQuery;
     });
   }, [orders, activeTab, searchQuery]);
 
   const pendingOrders = useMemo(() => {
-    return orders.filter(o => o.status === 'pending');
+    if (!orders || !Array.isArray(orders)) return [];
+    return orders.filter(o => o && o.status === 'pending');
   }, [orders]);
 
   const toggleSelectOrder = (orderId: string) => {
+    if (!orderId) return;
     setSelectedOrderIds((prev) => 
       prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]
     );
   };
 
-  const handleNavigateToOrder = (orderId: string) => {
+  const handleNavigateToOrder = (orderId?: string) => {
+    if (!orderId) return;
     try {
       router.push(`/order/${orderId}` as any);
     } catch (e) {}
@@ -82,31 +88,31 @@ export default function OrdersScreen() {
     if (selectedOrderIds.length === pendingOrders.length && pendingOrders.length > 0) {
       setSelectedOrderIds([]);
     } else {
-      setSelectedOrderIds(pendingOrders.map(o => o.id));
+      setSelectedOrderIds(pendingOrders.map(o => o.id).filter(Boolean));
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status?: string) => {
     switch (status) {
       case 'delivered':
-        return { bg: 'bg-emerald-50 dark:bg-emerald-950/40', text: 'text-emerald-600 dark:text-emerald-400', label: 'Delivered' };
+        return { bg: 'bg-emerald-50 dark:bg-emerald-950', text: 'text-emerald-600 dark:text-emerald-400', label: 'Delivered' };
       case 'cancelled':
-        return { bg: 'bg-rose-50 dark:bg-rose-950/40', text: 'text-rose-600 dark:text-rose-400', label: 'Cancelled' };
+        return { bg: 'bg-rose-50 dark:bg-rose-950', text: 'text-rose-600 dark:text-rose-400', label: 'Cancelled' };
       case 'assigned':
-        return { bg: 'bg-sky-50 dark:bg-sky-950/40', text: 'text-sky-600 dark:text-sky-400', label: 'In Transit' };
+        return { bg: 'bg-sky-50 dark:bg-sky-950', text: 'text-sky-600 dark:text-sky-400', label: 'In Transit' };
       default:
-        return { bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-600 dark:text-amber-400', label: 'Pending' };
+        return { bg: 'bg-amber-50 dark:bg-amber-950', text: 'text-amber-600 dark:text-amber-400', label: 'Pending' };
     }
   };
 
-  const getPaymentBadge = (paymentStatus: string) => {
+  const getPaymentBadge = (paymentStatus?: string) => {
     switch (paymentStatus) {
       case 'paid':
-        return { bg: 'bg-emerald-100/80 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', label: 'Paid' };
+        return { bg: 'bg-emerald-100 dark:bg-emerald-900', text: 'text-emerald-700 dark:text-emerald-300', label: 'Paid' };
       case 'partial':
-        return { bg: 'bg-amber-100/80 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', label: 'Partial' };
+        return { bg: 'bg-amber-100 dark:bg-amber-900', text: 'text-amber-700 dark:text-amber-300', label: 'Partial' };
       default:
-        return { bg: 'bg-rose-100/80 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', label: 'Unpaid' };
+        return { bg: 'bg-rose-100 dark:bg-rose-900', text: 'text-rose-700 dark:text-rose-300', label: 'Unpaid' };
     }
   };
 
@@ -119,20 +125,21 @@ export default function OrdersScreen() {
       const { orderService } = await import('@/services/orderService');
       const { deliveryService } = await import('@/services/deliveryService');
 
-      const targetOrders = orders.filter(o => selectedOrderIds.includes(o.id));
+      const targetOrders = (orders || []).filter(o => o && selectedOrderIds.includes(o.id));
 
       await Promise.all(
         targetOrders.map(async (order) => {
+          if (!order || !order.id) return;
           await orderService.assignHelper(order.id, driver.id, driver.name);
 
           try {
-            const bottleQty = order.items ? order.items.reduce((sum, it) => sum + it.quantity, 0) : 1;
+            const bottleQty = order.items ? order.items.reduce((sum, it) => sum + (it?.quantity || 1), 0) : 1;
             await deliveryService.create({
               orderId: order.id,
               helperId: driver.id,
               helperName: driver.name,
-              customerId: order.customerId,
-              customerName: order.customerName,
+              customerId: order.customerId || '',
+              customerName: order.customerName || 'Customer',
               status: 'pending',
               scheduledDate: order.deliveryDate || new Date().toISOString(),
               bottlesDelivered: bottleQty,
@@ -169,8 +176,8 @@ export default function OrdersScreen() {
   return (
     <View className="flex-1 bg-slate-50 dark:bg-slate-900">
       {/* Search and Tab Filters */}
-      <View className="bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-800/80 px-4 pt-3 pb-2">
-        <View className="flex-row items-center bg-slate-100 dark:bg-slate-900/80 rounded-xl px-3 py-2 mb-3">
+      <View className="bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-800 px-4 pt-3 pb-2">
+        <View className="flex-row items-center bg-slate-100 dark:bg-slate-900 rounded-xl px-3 py-2 mb-3">
           <Ionicons name="search-outline" size={18} color="#94a3b8" />
           <TextInput
             placeholder="Search orders by customer or ID..."
@@ -201,7 +208,7 @@ export default function OrdersScreen() {
                   className={`mr-2 px-3.5 py-1.5 rounded-full border ${
                     isActive 
                       ? 'bg-sky-600 border-sky-600' 
-                      : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700'
+                      : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700'
                   }`}
                   activeOpacity={0.7}
                 >
@@ -221,7 +228,7 @@ export default function OrdersScreen() {
           {pendingOrders.length > 0 && (
             <TouchableOpacity 
               onPress={handleSelectAllPending}
-              className="px-2.5 py-1 bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/60 rounded-lg flex-row items-center gap-1"
+              className="px-2.5 py-1 bg-sky-50 dark:bg-sky-950 border border-sky-200 dark:border-sky-800 rounded-lg flex-row items-center gap-1"
               activeOpacity={0.7}
             >
               <Ionicons 
@@ -238,15 +245,16 @@ export default function OrdersScreen() {
       </View>
 
       {/* Orders List */}
-      {loading && orders.length === 0 ? (
+      {loading && (!orders || orders.length === 0) ? (
         <Loader />
       ) : (
         <FlatList
           data={filteredOrders}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) => item?.id || `order-idx-${index}`}
           contentContainerStyle={{ padding: 16, paddingBottom: selectedOrderIds.length > 0 ? 140 : 90 }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
+            if (!item) return null;
             const status = getStatusBadge(item.status);
             const payment = getPaymentBadge(item.paymentStatus);
             const isSelected = selectedOrderIds.includes(item.id);
@@ -256,8 +264,8 @@ export default function OrdersScreen() {
               <View 
                 className={`bg-white dark:bg-slate-800 border-2 ${
                   isSelected 
-                    ? 'border-sky-500 bg-sky-50/30 dark:bg-sky-950/30' 
-                    : 'border-slate-100 dark:border-slate-700/60'
+                    ? 'border-sky-500 bg-sky-50 dark:bg-sky-950' 
+                    : 'border-slate-100 dark:border-slate-700'
                 } rounded-2xl p-4 mb-3`}
               >
                 {/* Header Row with Checkbox */}
@@ -282,10 +290,10 @@ export default function OrdersScreen() {
                       className="flex-1"
                     >
                       <Text className="text-base font-extrabold text-slate-900 dark:text-slate-50">
-                        {item.customerName}
+                        {item.customerName || 'Customer'}
                       </Text>
                       <Text className="text-xs font-medium text-slate-400 dark:text-slate-500 mt-0.5">
-                        📅 {formatDate(item.deliveryDate)}
+                        📅 {item.deliveryDate ? formatDate(item.deliveryDate) : 'Today'}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -305,34 +313,34 @@ export default function OrdersScreen() {
                 </View>
 
                 {/* Items Box */}
-                <View className="bg-slate-50 dark:bg-slate-900/60 px-3 py-2 rounded-xl my-2 flex-row items-center gap-2">
+                <View className="bg-slate-50 dark:bg-slate-900 px-3 py-2 rounded-xl my-2 flex-row items-center gap-2">
                   <Ionicons name="cube-outline" size={14} color="#0284c7" />
                   <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex-1" numberOfLines={1}>
                     {getOrderSummaryText(item)}
                   </Text>
                 </View>
 
-                {item.assignedHelperName && (
+                {item.assignedHelperName ? (
                   <View className="flex-row items-center gap-1.5 mb-2">
                     <Ionicons name="bicycle" size={13} color="#0D9488" />
                     <Text className="text-xs font-medium text-slate-500 dark:text-slate-400">
                       Assigned Driver: <Text className="font-bold text-teal-600 dark:text-teal-400">{item.assignedHelperName}</Text>
                     </Text>
                   </View>
-                )}
+                ) : null}
 
-                <View className="flex-row justify-between items-center pt-2.5 border-t border-slate-100 dark:border-slate-700/50">
+                <View className="flex-row justify-between items-center pt-2.5 border-t border-slate-100 dark:border-slate-700">
                   <Text className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                     Total Amount
                   </Text>
                   <Text className="text-base font-black text-slate-900 dark:text-slate-50">
-                    {formatCurrency(item.totalAmount)}
+                    {formatCurrency(item.totalAmount || 0)}
                   </Text>
                 </View>
 
                 {/* Individual 1-Tap Assign Button */}
-                {canSelect && !isSelected && (
-                  <View className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-700/60 flex-row gap-2">
+                {canSelect && !isSelected ? (
+                  <View className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-700 flex-row gap-2">
                     <TouchableOpacity
                       onPress={() => {
                         setSelectedOrderIds([item.id]);
@@ -347,7 +355,7 @@ export default function OrdersScreen() {
                       </Text>
                     </TouchableOpacity>
                   </View>
-                )}
+                ) : null}
               </View>
             );
           }}
@@ -422,7 +430,7 @@ export default function OrdersScreen() {
                 Active Delivery Drivers
               </Text>
 
-              {staffList.filter(s => s.status === 'active').length === 0 ? (
+              {(!staffList || staffList.filter(s => s && s.status === 'active').length === 0) ? (
                 <View className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl items-center my-2">
                   <Ionicons name="people-outline" size={32} color="#94A3B8" />
                   <Text className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-2 text-center">
@@ -436,7 +444,7 @@ export default function OrdersScreen() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                staffList.filter(s => s.status === 'active').map((staff) => (
+                staffList.filter(s => s && s.status === 'active').map((staff) => (
                   <TouchableOpacity
                     key={staff.id}
                     onPress={() => handleBatchAssignToDriver(staff)}
@@ -445,15 +453,15 @@ export default function OrdersScreen() {
                     activeOpacity={0.7}
                   >
                     <View className="flex-row items-center gap-3 flex-1 pr-2">
-                      <View className="w-10 h-10 rounded-xl bg-teal-100 dark:bg-teal-950/60 justify-center items-center">
+                      <View className="w-10 h-10 rounded-xl bg-teal-100 dark:bg-teal-950 justify-center items-center">
                         <Ionicons name="bicycle" size={20} color="#0D9488" />
                       </View>
                       <View>
                         <Text className="text-sm font-black text-slate-900 dark:text-slate-50">
-                          {staff.name}
+                          {staff.name || 'Driver'}
                         </Text>
                         <Text className="text-3xs font-semibold text-slate-500 mt-0.5">
-                          📞 {staff.phone} {staff.vehicleNumber ? `• 🚚 ${staff.vehicleNumber}` : ''}
+                          📞 {staff.phone || ''} {staff.vehicleNumber ? `• 🚚 ${staff.vehicleNumber}` : ''}
                         </Text>
                       </View>
                     </View>
@@ -474,7 +482,7 @@ export default function OrdersScreen() {
       {/* Floating Action Button for Create Order (When no batch selection active) */}
       {selectedOrderIds.length === 0 && (
         <TouchableOpacity 
-          className="absolute bottom-6 right-6 bg-sky-600 w-14 h-14 rounded-full justify-center items-center shadow-lg active:opacity-85 shadow-sky-600/40"
+          className="absolute bottom-6 right-6 bg-sky-600 w-14 h-14 rounded-full justify-center items-center shadow-lg active:opacity-85 shadow-sky-600"
           onPress={handleNavigateToCreate}
           activeOpacity={0.8}
         >
