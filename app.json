@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "NextWater",
+    "slug": "NextWater",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/logo1_transparent.png",
+    "scheme": "nextwater",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/images/logo1_transparent.png"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0F172A",
+        "foregroundImage": "./assets/images/logo1_transparent.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.abhiparekar.NextWater"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/logo1_transparent.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0F172A",
+          "image": "./assets/images/logo1_transparent.png",
+          "imageWidth": 200
+        }
+      ],
+      "@react-native-community/datetimepicker"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
