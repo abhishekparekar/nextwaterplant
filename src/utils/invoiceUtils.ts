@@ -18,8 +18,11 @@ export const formatCurrency = (amount: number | null | undefined, currencySymbol
 };
 
 /**
- * Summarizes the items in an order into a single line string
+ * Summarizes the items in an order into a single line string (safe against null/undefined)
  */
-export const getOrderSummaryText = (order: Order): string => {
-  return order.items.map((item) => `${item.itemName} x ${item.quantity}`).join(', ');
+export const getOrderSummaryText = (order?: Order | null): string => {
+  if (!order || !order.items || !Array.isArray(order.items) || order.items.length === 0) {
+    return '20L Water Jars';
+  }
+  return order.items.map((item) => `${item.itemName || '20L Jar'} x ${item.quantity || 1}`).join(', ');
 };

@@ -285,7 +285,7 @@ export default function OrdersScreen() {
                   Assign Delivery to Staff
                 </Text>
                 <Text className="text-3xs text-slate-500 mt-0.5">
-                  Order for: {selectedOrder?.customerName} ({getOrderSummaryText(selectedOrder as any)})
+                  Order for: {selectedOrder?.customerName || 'Customer'} ({getOrderSummaryText(selectedOrder)})
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setAssignModalVisible(false)} className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 justify-center items-center">
